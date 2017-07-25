@@ -1,0 +1,3 @@
+[submodule "dnc"]
+	path = dnc
+	url = https://github.com/deepmind/dnc.git
