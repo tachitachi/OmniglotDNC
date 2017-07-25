@@ -59,22 +59,28 @@ class Omniglot():
                     
                 self.testChars[classId].add(sample)
                 
-    def _GetBatch(self, sampleDict, batchSize, numClasses=1, samplesPerChar=1):
+    def _GetBatch(self, sampleDict, batchSize, numClasses=1, samplesPerChar=1, one_hot=True):
     
         assert(batchSize <= numClasses * samplesPerChar)
     
         # generate random sample
         samples = np.random.choice(list(sampleDict.keys()), numClasses)
         
-        seen = set()
-        
         x = []
         y = []
         
-        for s in samples:
-            character = sampleDict[s]
+        for i in range(len(samples)):
+            sample = samples[i]
+            character = sampleDict[sample]
             x.extend(character.load(samplesPerChar))
-            y.extend([character.classId] * samplesPerChar)
+            
+            if one_hot:
+                y_label = np.zeros(numClasses)
+                y_label[i] = 1
+            else:
+                y_label = i
+            
+            y.extend([y_label] * samplesPerChar)
             
             
         zipped = list(zip(x, y))
@@ -87,11 +93,11 @@ class Omniglot():
         return x[:batchSize], y[:batchSize]
         
     
-    def TrainBatch(self, batchSize, classes=1, samples=1):
-        return self._GetBatch(self.trainChars, batchSize, classes, samples)
+    def TrainBatch(self, batchSize, classes=1, samples=1, one_hot=True):
+        return self._GetBatch(self.trainChars, batchSize, classes, samples, one_hot)
     
-    def TestBatch(self, batchSize, classes=1, samples=1):
-        return self._GetBatch(self.testChars, batchSize, classes, samples)
+    def TestBatch(self, batchSize, classes=1, samples=1, one_hot=True):
+        return self._GetBatch(self.testChars, batchSize, classes, samples, one_hot)
             
 # test
 if __name__ == '__main__':
