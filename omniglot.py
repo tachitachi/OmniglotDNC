@@ -26,8 +26,8 @@ class Character():
     def add(self, sample):
         self.samples.append(sample)
         
-    def load(self, n=1):
-        return [sample.load() for sample in np.random.choice(self.samples, n, replace=False)]
+    def load(self, n=1, flatten=False):
+        return [(sample.load().flatten() if flatten else sample.load()) for sample in np.random.choice(self.samples, n, replace=False)]
         
         
 class Omniglot():
@@ -59,7 +59,7 @@ class Omniglot():
                     
                 self.testChars[classId].add(sample)
                 
-    def _GetBatch(self, sampleDict, batchSize, numClasses=1, samplesPerChar=1, one_hot=True):
+    def _GetBatch(self, sampleDict, batchSize, numClasses=1, samplesPerChar=1, one_hot=True, flatten=True):
     
         assert(batchSize <= numClasses * samplesPerChar)
     
@@ -72,7 +72,7 @@ class Omniglot():
         for i in range(len(samples)):
             sample = samples[i]
             character = sampleDict[sample]
-            x.extend(character.load(samplesPerChar))
+            x.extend(character.load(samplesPerChar, flatten=flatten))
             
             if one_hot:
                 y_label = np.zeros(numClasses)
@@ -102,5 +102,5 @@ class Omniglot():
 # test
 if __name__ == '__main__':
     og = Omniglot()
-    x, y = og.TrainBatch(100, classes=10, samples=10)
+    x, y = og.TrainBatch(1, classes=1, samples=1)
     print(x, y)

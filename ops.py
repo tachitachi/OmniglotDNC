@@ -1,0 +1,37 @@
+import tensorflow as tf
+import numpy as np
+
+def conv2d(x, num_filters, name, filter_size=(3, 3), stride=(1, 1), pad='SAME'):
+    with tf.variable_scope(name):
+        stride_shape = [1, stride[0], stride[1], 1]
+        
+        # does x have to be 4 dimensional?
+        filter_shape = [filter_size[0], filter_size[1], int(x.get_shape()[3]), num_filters]
+        
+        # there are "num input feature maps * filter height * filter width"
+        # inputs to each hidden unit
+        fan_in = np.prod(filter_shape[:3])
+        # each unit in the lower layer receives a gradient from:
+        # "num output feature maps * filter height * filter width" /
+        #   pooling size
+        fan_out = np.prod(filter_shape[:2]) * num_filters
+        # initialize weights with random weights
+        w_bound = np.sqrt(6. / (fan_in + fan_out))
+        
+        W = tf.get_variable('W', filter_shape, dtype=tf.float32, initializer=tf.random_uniform_initializer(-w_bound, w_bound))
+        b = tf.get_variable('b', [1, 1, 1, num_filters], dtype=tf.float32, initializer=tf.constant_initializer(0.0))
+        
+        return tf.nn.conv2d(x, W, stride_shape, pad) + b
+        
+def linear(x, size, name, initializer=None, bias_init=0.0):
+    with tf.variable_scope(name):
+        W = tf.get_variable('W', [int(x.get_shape()[1]), size], initializer=None)
+        b = tf.get_variable('b', [size], initializer=tf.constant_initializer(bias_init))
+        
+        return tf.matmul(x, W) + b
+        
+def batch_norm(x, mean=0, variance=1, offset=None, scale=None, variance_epsilon=1e-7):
+    return tf.nn.batch_normalization(x, mean, variance, offset, scale, variance_epsilon)
+        
+def flatten(x):
+    return tf.reshape(x, [-1, np.prod(x.get_shape().as_list()[1:])])
