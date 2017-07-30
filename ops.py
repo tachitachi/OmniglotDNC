@@ -23,9 +23,13 @@ def conv2d(x, num_filters, name, filter_size=(3, 3), stride=(1, 1), pad='SAME'):
         
         return tf.nn.conv2d(x, W, stride_shape, pad) + b
         
-def linear(x, size, name, initializer=None, bias_init=0.0):
+def linear(x, size, name, initializer='relu', bias_init=0.0):
     with tf.variable_scope(name):
-        W = tf.get_variable('W', [int(x.get_shape()[1]), size], initializer=None)
+        if initializer == 'relu':
+            fan_in = int(x.get_shape()[1])
+            w_bound = tf.sqrt(2 / fan_in)
+            initializer = tf.random_uniform_initializer(-w_bound, w_bound)
+        W = tf.get_variable('W', [int(x.get_shape()[1]), size], initializer=initializer)
         b = tf.get_variable('b', [size], initializer=tf.constant_initializer(bias_init))
         
         return tf.matmul(x, W) + b
