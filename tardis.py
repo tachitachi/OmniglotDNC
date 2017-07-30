@@ -67,57 +67,20 @@ class TardisCell(tf.nn.rnn_cell.RNNCell):
 
     def call(self, inputs, state):
         """LSTM with nunits cells and external memory."""
-        print('creating tardis cell', state)
-        print('inputs', inputs)
 
         c, h, m = state
-        
-        print(inputs.shape, h.shape, m.shape)
-        
-        #m_tiled = 
 
         # Read from memory
-        # for this to work correctly, we need to feed in one at a time
         with tf.variable_scope('tardis_memory_read'):
             read_weights = _linear([inputs, h, m], self._mem_size, True)
-            #read_weights = _linear([inputs, h], self._mem_size, True)
-            
-#            with tf.variable_scope('W_h'):
-#                wh = _linear([h], self._word_size, False)
-#                
-#            with tf.variable_scope('W_x'):
-#                wx = _linear([inputs], self._word_size, False)
-#            
-#            print(tf.shape(inputs)[0:1])
-#            temp = tf.tile(m, tf.expand_dims(tf.shape(inputs)[0:1], 1))
-#            print('@@@@@@@temp', temp)
-#            m_tile = tf.reshape(temp, [-1, self._mem_size * self._word_size])
-#            
-#            print('m_tile', m_tile)
-            
-            #read_weights = _linear([inputs, h], self._mem_size, True)
 
             read_index = gumbel_softmax(read_weights, 1.0, hard=True)
             
-            read_index = tf.reshape(tf.tile(read_index, (1, self._mem_size)),  [-1, self._mem_size, self._word_size])
-            
-            print('read_index', read_index)
-            #print(tf.reshape(m, [-1, self._mem_size, self._word_size]))
-            #print(tf.reshape(m, [-1, self._mem_size, self._word_size]) * tf.reshape(read_index, [-1, 1]))
+            read_index = tf.transpose(tf.reshape(tf.tile(read_index, (1, self._word_size)), (-1, self._word_size, self._mem_size)), (0, 2, 1))
 
             read_value = tf.reduce_sum(tf.reshape(m, [-1, self._mem_size, self._word_size]) * read_index, axis=1)
 
-        print('@@@0', read_value)
-
-
-        #concat = _linear([inputs, h, tf.expand_dims(read_value, 0)], 4 * self._num_units, True)
-        with tf.variable_scope('tardis_reshape_test'):
-            read_tiled = tf.reshape(tf.tile(read_value, [1, tf.shape(inputs)[0]]), [-1, self._word_size])
-            
-        print('read_tiled', read_tiled)
-        
-        #concat = _linear([inputs, h, read_value], 4 * self._num_units, True)
-        concat = _linear([inputs, h], 4 * self._num_units, True)
+        concat = _linear([inputs, h, read_value], 4 * self._num_units, True)
 
         # i = input_gate, j = new_input, f = forget_gate, o = output_gate
         i, j, f, o = tf.split(value=concat, num_or_size_splits=4, axis=1)
@@ -132,28 +95,14 @@ class TardisCell(tf.nn.rnn_cell.RNNCell):
         with tf.variable_scope('tardis_memory_write'):
 
             new_memory = _linear([new_h], self._word_size, True)
-            print('new_memory', new_memory)
 
-            erase = tf.reshape(tf.ones_like(read_index) - read_index, [-1, self._mem_size, self._word_size])
+            erase = tf.ones_like(read_index) - read_index
 
-            print('@@@1', erase)
-
-            #print('@@@2', tf.reshape(tf.tile(new_memory, [self._mem_size, 1]), [-1, self._mem_size, self._word_size]))
-            #print('@@@3', tf.reshape(read_index, [-1, 1]))
-
-            print(m)
-
-            new_to_write = tf.reshape(tf.tile(new_memory, [self._mem_size, 1]), [-1, self._mem_size, self._word_size])
-            #new_index = tf.reshape(read_index, [-1, 1])
-
+            new_to_write = tf.reshape(tf.tile(new_memory, (1, self._mem_size)), (-1, self._mem_size, self._word_size))
             new_mem = new_to_write * read_index
-
-            print(new_mem)
 
             m = tf.reshape(m, [-1, self._mem_size, self._word_size]) * erase + new_mem
             m = tf.reshape(m, [-1, self._mem_size * self._word_size])
-
-            print('@@@4', m)
 
         return new_h, TardisStateTuple(new_c, new_h, m)
 
