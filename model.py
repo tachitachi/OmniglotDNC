@@ -99,8 +99,8 @@ def rnn():
 def omniglot_rnn(num_classes):
 
     lstm_size = 64
-    memory_size = 4
-    word_size = 4
+    memory_size = 16
+    word_size = 16
     
     width = 105
     height = 105
@@ -123,7 +123,7 @@ def omniglot_rnn(num_classes):
     obs = tf.nn.relu(conv2d(obs, 4, 'conv1', (3, 3), (2, 2)))
     obs = tf.nn.relu(conv2d(obs, 4, 'conv2', (3, 3), (2, 2)))
     obs = tf.nn.relu(conv2d(obs, 4, 'conv3', (3, 3), (2, 2)))
-    obs = tf.nn.relu(conv2d(obs, 4, 'conv4', (3, 3), (2, 2)))
+    #obs = tf.nn.relu(conv2d(obs, 4, 'conv4', (3, 3), (2, 2)))
     
     print(obs)
     
@@ -139,7 +139,7 @@ def omniglot_rnn(num_classes):
     
     
     # add fake time of 1
-    obs = tf.expand_dims(x, [1])
+    obs = tf.expand_dims(obs, [0])
     
     print(x)
     print(obs)
@@ -150,6 +150,7 @@ def omniglot_rnn(num_classes):
     #seq_len = None
     
     cell = TardisCell(lstm_size, memory_size, word_size)
+    lstm = tf.nn.rnn_cell.BasicLSTMCell(lstm_size)
     
     
     c_init = np.zeros((1, cell.state_size.c), np.float32)
@@ -163,6 +164,8 @@ def omniglot_rnn(num_classes):
     m_placeholder = tf.placeholder(tf.float32, [None, cell.state_size.m])
     
     state_init = TardisStateTuple(c_placeholder, h_placeholder, m_placeholder)
+    
+    lstm_init = tf.nn.rnn_cell.LSTMStateTuple(c_placeholder, h_placeholder)
 
     
     
@@ -171,8 +174,10 @@ def omniglot_rnn(num_classes):
     #tardis_outputs, tardis_state = tf.nn.dynamic_rnn(cell, x, dtype=tf.float32, time_major=True)
     tardis_outputs, tardis_state = tf.nn.dynamic_rnn(
         cell=cell, 
+        #cell=lstm, 
         inputs=obs, 
         initial_state=state_init,
+        #initial_state=lstm_init,
         #dtype=tf.float32, 
         sequence_length=seq_len, 
         time_major=False)
@@ -180,15 +185,16 @@ def omniglot_rnn(num_classes):
     print(tardis_outputs)
     print(tardis_state)
     
-    obs = linear(flatten(tardis_outputs), num_classes, 'linear0')
+    obs = linear(flatten(tf.transpose(tardis_outputs, (1, 0, 2))), num_classes, 'linear0')
     
+    softmax = gumbel_softmax(obs, 1.0)
     guess = tf.argmax(obs, 1)
 
     y = tf.placeholder(tf.float32, [None, num_classes])
-    loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=obs, labels=y))
-    train_op = tf.train.AdamOptimizer(1e-2).minimize(loss)
+    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=obs, labels=y))
+    train_op = tf.train.AdamOptimizer(1e-4).minimize(loss)
     
     correct_prediction = tf.equal(tf.argmax(obs, 1), tf.argmax(y, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-    return x, y, loss, train_op, accuracy, seq_len, zero_state, state_init, tardis_state, cell, guess
+    return x, y, loss, train_op, accuracy, seq_len, zero_state, state_init, tardis_state, cell, guess, obs, softmax, lstm_init
