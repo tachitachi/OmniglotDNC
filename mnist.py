@@ -1,8 +1,18 @@
+import argparse
+import sys
+
+from ops import *
+from tardis import TardisCell, TardisStateTuple
+
+from tensorflow.examples.tutorials.mnist import input_data
+
 import tensorflow as tf
 import numpy as np
-from ops import *
 
-from tardis import TardisStateTuple, TardisCell
+FLAGS = None
+
+width = height = 28
+num_classes = 10
 
 def cnn():
     x = tf.placeholder(tf.float32, [None, width * height])
@@ -94,82 +104,108 @@ def rnn():
     return x, y, loss, train_op, accuracy, seq_len
     
     
-    
-
-def omniglot_rnn(num_classes):
+def rnn_tardis():
 
     lstm_size = 64
     memory_size = 16
     word_size = 16
     
-    width = 28
-    height = 28
+    x = tf.placeholder(tf.float32, [None, width * height])
     
-    with tf.variable_scope('omni_rnn'):
+    # batch_size, max_time, chunk_size
+    sequence = obs = tf.reshape(x, [-1, width, height])
+    print(sequence.get_shape())
     
-        # image concatenated with prev step's answer
-        x = tf.placeholder(tf.float32, [None, width * height + num_classes])
-        
-        
-        with tf.variable_scope('FeatureExtractor'):
-            obs, prev = tf.split(x, (width * height, num_classes), axis=1)
-
-            obs = tf.reshape(obs, [-1, width, height, 1])
-
-            obs = tf.nn.relu(conv2d(obs, 4, 'conv1', (3, 3), (2, 2)))
-            obs = tf.nn.relu(conv2d(obs, 4, 'conv2', (3, 3), (2, 2)))
-            obs = tf.nn.relu(conv2d(obs, 4, 'conv3', (3, 3), (2, 2)))
-            
-            obs = flatten(obs)
-            
-            obs = tf.concat((obs, prev), 1)
-        
-        
-        # add fake time of 1
-        obs = tf.expand_dims(obs, [0])
-
-        seq_len = length_all(obs)
-        
+    seq_len = length_all(obs)
+    #obs = tf.transpose(obs, [1, 0, 2])
+    
+    #obs = tf.split(obs, width, 0)
+    #obs = tf.concat(obs, axis=0)
+    #obs = tf.reshape(x, [-1, 1, width])
+    
+    print('1', type(obs), obs, tf.shape(obs)[:1])
+    
+    useTardis = True
+    
+    
+    if useTardis:
         cell = TardisCell(lstm_size, memory_size, word_size)
-        
-        
-        c_init = np.zeros((1, cell.state_size.c), np.float32)
-        h_init = np.zeros((1, cell.state_size.h), np.float32)
-        m_init = np.zeros((1, cell.state_size.m), np.float32)
-        
-        zero_state = TardisStateTuple(c_init, h_init, m_init)
         
         c_placeholder = tf.placeholder(tf.float32, [None, cell.state_size.c])
         h_placeholder = tf.placeholder(tf.float32, [None, cell.state_size.h])
         m_placeholder = tf.placeholder(tf.float32, [None, cell.state_size.m])
         
         state_init = TardisStateTuple(c_placeholder, h_placeholder, m_placeholder)
+    
+    else:
+        cell = tf.nn.rnn_cell.BasicLSTMCell(lstm_size)
         
-        tardis_outputs, tardis_state = tf.nn.dynamic_rnn(
-            cell=cell, 
-            inputs=obs, 
-            initial_state=state_init,
-            #dtype=tf.float32, 
-            sequence_length=seq_len, 
-            time_major=False)
+        c_placeholder = tf.placeholder(tf.float32, [None, cell.state_size.c])
+        h_placeholder = tf.placeholder(tf.float32, [None, cell.state_size.h])
         
-        obs = linear(flatten(tf.transpose(tardis_outputs, (1, 0, 2))), num_classes, 'linear0')
-        
-        guess = tf.argmax(obs, 1)
-        
-        var_list = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, tf.get_variable_scope().name)
-        
-        print(var_list)
-        
-        trainable_var_list = [var for var in var_list if 'FeatureExtractor' not in var.op.name]
-        
-        print(trainable_var_list)
+        state_init = tf.nn.rnn_cell.LSTMStateTuple(c_placeholder, h_placeholder)
+    
+    print('state_init', state_init)
+    
+    
+    lstm_outputs, lstm_state = tf.nn.dynamic_rnn(
+        cell=cell, 
+        inputs=obs, 
+        #initial_state=state_init,
+        dtype=tf.float32, 
+        sequence_length=seq_len)
+    #lstm_outputs, lstm_state = tf.nn.dynamic_rnn(lstm, obs, dtype=tf.float32, sequence_length=l)
+    
+    print(lstm_outputs)
+    
+    obs = linear(flatten(lstm_outputs), num_classes, 'linear0')
 
-        y = tf.placeholder(tf.float32, [None, num_classes])
-        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=obs, labels=y))
-        train_op = tf.train.AdamOptimizer(1e-3).minimize(loss, var_list=trainable_var_list)
-        
-        correct_prediction = tf.equal(tf.argmax(obs, 1), tf.argmax(y, 1))
-        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    y = tf.placeholder(tf.float32, [None, num_classes])
+    loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=obs, labels=y))
+    train_op = tf.train.AdamOptimizer(1e-2).minimize(loss)
+    
+    correct_prediction = tf.equal(tf.argmax(obs, 1), tf.argmax(y, 1))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-        return x, y, loss, train_op, accuracy, seq_len, state_init, tardis_state, cell, guess, obs
+    return x, y, state_init, cell, loss, train_op, accuracy, seq_len, lstm_state
+
+def main(_):
+    mnist = input_data.read_data_sets(FLAGS.data_dir, one_hot=True)
+
+    
+    #x, y, loss, train_op, accuracy = cnn()
+    x, y, state_init, cell, loss, train_op, accuracy, seq_len, lstm_state = rnn_tardis()
+    
+    batches = 5000
+    batch_size = 200
+    
+    with tf.Session() as sess:
+        
+        sess.run(tf.global_variables_initializer())
+        
+        for batch in range(batches):
+            batch_xs, batch_ys = mnist.train.next_batch(batch_size)
+            #print(batch_xs, batch_ys)
+            
+            #state = cell.zero_state(len(batch_xs), dtype=tf.float32)
+            #state = tf.nn.rnn_cell.LSTMStateTuple(np.zeros((batch_size, 64)), np.zeros((batch_size, 64)))
+            
+            
+            #print('state', state)
+            
+            # train 
+            _, z, sl = sess.run([train_op, loss, seq_len], feed_dict={x: batch_xs, y: batch_ys })
+            #print(z)
+                
+            if batch % 100 == 0:
+                acc, state = sess.run([accuracy, lstm_state], feed_dict={x: mnist.test.images, y: mnist.test.labels})
+                #print(np.array([z, acc]), sl)
+                print(np.array([z, acc]))
+                #print(state)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_dir', type=str, default='./tmp/tensorflow/mnist/input_data',
+                      help='Directory for storing input data')
+    FLAGS, unparsed = parser.parse_known_args()
+    tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)

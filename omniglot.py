@@ -1,5 +1,6 @@
 import os
 from scipy.ndimage import imread
+from scipy.misc import imresize
 import numpy as np
 
 class Sample():
@@ -11,7 +12,7 @@ class Sample():
         
     def load(self):
         # flatten to gray scale
-        I = imread(self.filepath,flatten=True)
+        I = imresize(imread(self.filepath,flatten=True), (28, 28))
         return I
         
     def __str__(self):

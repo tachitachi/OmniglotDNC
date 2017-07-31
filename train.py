@@ -30,7 +30,7 @@ def main(_):
     
     
     # Clean this up by turning into a class
-    x, y, loss, train_op, accuracy, seq_len, zero_state, state_init, tardis_state, cell, guess, obs, softmax, lstm_init = omniglot_rnn(num_classes)
+    x, y, loss, train_op, accuracy, seq_len, state_init, tardis_state, cell, guess, obs = omniglot_rnn(num_classes)
     
     
     for var in tf.global_variables():
@@ -47,33 +47,11 @@ def main(_):
             shifted_ys = [np.zeros(num_classes)] + batch_ys[:-1]
             
             xs = np.concatenate((np.array(batch_xs), np.array(shifted_ys)), axis=1)
-            #xs = np.concatenate((np.array(batch_xs), np.array(batch_ys)), axis=1)
             ys = np.array(batch_ys)
             
-            #print(batch)
-            
-            #state = zero_state
-            #state = cell.zero_state(batch_size)
-            
-            #state = cell.zero_state(1)
-            #state = tf.nn.rnn_cell.LSTMStateTuple(np.zeros((1, 64), np.float32), np.zeros((1, 64), np.float32))
-            #print('start')
-            #for i in range(xs.shape[0]):
-            #    currX = xs[i]
-            #    currY = ys[i]
-            #    g, state, logits = sess.run([guess, tardis_state, obs], feed_dict={x: [currX], y: [currY], lstm_init: state})
-            #    print(g, currY)
-            #    print(logits)
-            #    #print(state)
-            #print('end')
-            #print(batch_xs)
-            #print(batch_ys)
-            #print(shifted_ys)
-            
             state = cell.zero_state(1)
-            #state = tf.nn.rnn_cell.LSTMStateTuple(np.zeros((1, 64), np.float32), np.zeros((1, 64), np.float32))
             
-            _, l, acc, g, sl, out_state, logits, stoch = sess.run([train_op, loss, accuracy, guess, seq_len, tardis_state, obs, softmax], feed_dict={x: xs, y: ys, state_init: state})
+            _, l, acc, g, sl, out_state, logits = sess.run([train_op, loss, accuracy, guess, seq_len, tardis_state, obs], feed_dict={x: xs, y: ys, state_init: state})
             if batch % 250 == 0:
                 print(l, acc, sl)
                 print(g)

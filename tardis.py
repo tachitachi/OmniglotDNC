@@ -50,12 +50,18 @@ class TardisCell(tf.nn.rnn_cell.RNNCell):
         self._forget_bias = forget_bias
         self._activation = activation or tf.tanh
 
-    def zero_state(self, batch_size, dtype='float32'):
-        c = np.zeros((batch_size, self._num_units), dtype=dtype)
-        h = np.zeros((batch_size, self._num_units), dtype=dtype)
-        m = np.zeros((batch_size, self._mem_size * self._word_size), dtype=dtype)
+#    def zero_state(self, batch_size, dtype=tf.float32):
+#        state_size = self.state_size
+#        return _zero_state_tensors(state_size, batch_size, dtype)
         
-        return TardisStateTuple(c, h, m)
+    
+#    def zero_state(self, batch_size, dtype='float32'):
+#        print('batch_size', batch_size)
+#        c = np.zeros((batch_size, self._num_units), dtype=dtype)
+#        h = np.zeros((batch_size, self._num_units), dtype=dtype)
+#        m = np.zeros((batch_size, self._mem_size * self._word_size), dtype=dtype)
+#        
+#        return TardisStateTuple(c, h, m)
         
     @property
     def state_size(self):
@@ -107,7 +113,17 @@ class TardisCell(tf.nn.rnn_cell.RNNCell):
         return new_h, TardisStateTuple(new_c, new_h, m)
 
 
-        
+#def _zero_state_tensors(state_size, batch_size, dtype):
+#    """Create tensors of zeros based on state_size, batch_size, and dtype."""
+#    def get_state_shape(s):
+#        """Combine s with batch_size to get a proper tensor shape."""
+#        c = _concat(batch_size, s)
+#        c_static = _concat(batch_size, s, static=True)
+#        size = tf.zeros(c, dtype=dtype)
+#        size.set_shape(c_static)
+#        return size
+#    
+#    return nest.map_structure(get_state_shape, state_size)
         
 
 def _linear(args,

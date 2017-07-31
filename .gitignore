@@ -48,5 +48,6 @@ Temporary Items
 
 images_background/*
 images_evaluation/*
+tmp/*
 
 *.pyc
