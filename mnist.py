@@ -4,6 +4,8 @@ import sys
 from ops import *
 from tardis import TardisCell, TardisStateTuple
 
+from talstm import TimeAwareLSTMCell
+
 from tensorflow.examples.tutorials.mnist import input_data
 
 import tensorflow as tf
@@ -12,6 +14,9 @@ import numpy as np
 FLAGS = None
 
 width = height = 28
+#width = 14
+#height = 56
+
 num_classes = 10
 
 def cnn():
@@ -74,6 +79,11 @@ def rnn():
     
     # batch_size, max_time, chunk_size
     sequence = obs = tf.reshape(x, [-1, width, height])
+
+    # adding dt dimension to each item in the sequence
+    ones = tf.ones([tf.shape(obs)[0], width, 1])
+    sequence = obs = tf.concat([obs, ones], 2)
+
     print(sequence.get_shape())
     
     seq_len = length_all(obs)
@@ -84,7 +94,7 @@ def rnn():
     #obs = tf.reshape(x, [-1, 1, width])
     
     print('1', type(obs), obs, tf.shape(obs)[:1])
-    lstm = tf.contrib.rnn.BasicLSTMCell(rnn_size)
+    lstm = TimeAwareLSTMCell(rnn_size)
     
     
     lstm_outputs, lstm_state = tf.nn.dynamic_rnn(lstm, obs, dtype=tf.float32, sequence_length=seq_len)
@@ -92,7 +102,7 @@ def rnn():
     
     print(lstm_outputs)
     
-    obs = linear(flatten(lstm_outputs), num_classes, 'linear0')
+    obs = tf.layers.dense(flatten(lstm_outputs), num_classes, name='linear0')
 
     y = tf.placeholder(tf.float32, [None, num_classes])
     loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=obs, labels=y))
@@ -158,7 +168,7 @@ def rnn_tardis():
     
     print(lstm_outputs)
     
-    obs = linear(flatten(lstm_outputs), num_classes, 'linear0')
+    obs = tf.layers.dense(flatten(lstm_outputs), num_classes, name='linear0')
 
     y = tf.placeholder(tf.float32, [None, num_classes])
     loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=obs, labels=y))
@@ -174,7 +184,8 @@ def main(_):
 
     
     #x, y, loss, train_op, accuracy = cnn()
-    x, y, state_init, cell, loss, train_op, accuracy, seq_len, lstm_state = rnn_tardis()
+    #x, y, state_init, cell, loss, train_op, accuracy, seq_len, lstm_state = rnn_tardis()
+    x, y, loss, train_op, accuracy, seq_len = rnn()
     
     batches = 5000
     batch_size = 200
@@ -198,7 +209,7 @@ def main(_):
             #print(z)
                 
             if batch % 100 == 0:
-                acc, state = sess.run([accuracy, lstm_state], feed_dict={x: mnist.test.images, y: mnist.test.labels})
+                acc = sess.run(accuracy, feed_dict={x: mnist.test.images, y: mnist.test.labels})
                 #print(np.array([z, acc]), sl)
                 print(np.array([z, acc]))
                 #print(state)
