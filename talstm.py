@@ -75,11 +75,12 @@ class TimeAwareLSTMCell(RNNCell):
 		# the last element in every input is dt
 		inputs, dt = tf.split(inputs, [int(inputs.shape[1]) - 1, 1], 1)
 
+
 		#g = 1 / dt
 		g = 1 / tf.log(np.e + dt)
 
 		# adjust c
-		c_short = tf.layers.dense(c, self._num_units, activation=tf.tanh)
+		c_short = tf.layers.dense(c, self._num_units, activation=self._activation)
 		discounted_short = c_short * g
 
 		c_long = c - c_short
