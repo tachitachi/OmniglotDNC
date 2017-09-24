@@ -275,7 +275,7 @@ class DCGAN(object):
 			else:
 
 				obs = tf.layers.dense(obs, 128, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
-				obs = tf.layers.dense(obs, 28 * 28, kernel_initializer=tf.contrib.layers.xavier_initializer())
+				obs = tf.layers.dense(obs, np.prod(self.output_space), kernel_initializer=tf.contrib.layers.xavier_initializer())
 				out = tf.nn.sigmoid(obs)
 
 			#out = tf.concat([out, condition], axis=1)
@@ -381,10 +381,40 @@ class CondGAN(object):
 		with tf.variable_scope('discriminator', reuse=reuse):
 			#inputs = x = tf.placeholder(tf.float32, [None, np.sum(self.observation_space_d['size'])], 'input_d')
 
-			obs = tf.layers.dense(inputs, 128, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
-			logits = tf.layers.dense(obs, 1, kernel_initializer=tf.contrib.layers.xavier_initializer())
+			if False:
+				inputs = tf.split(inputs, self.observation_space_d['size'], axis=1)
 
-			out = tf.nn.sigmoid(logits)
+				obs = []
+				for ob, shape in zip(inputs, self.observation_space_d['shapes']):
+					ob_reshaped = tf.reshape(ob, [-1] + list(shape))
+					if len(shape) == 3:
+						# conv2d
+						for i in range(2):
+							ob_reshaped = tf.layers.conv2d(ob_reshaped, 16, 3, activation=tf.nn.relu, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
+							ob_reshaped = tf.layers.max_pooling2d(ob_reshaped, 2, 2)
+							#ob_reshaped = tf.layers.batch_normalization(ob_reshaped)
+
+						pass
+					elif len(shape) == 4:
+						for i in range(2):
+							ob_reshaped = tf.layers.conv3d(ob_reshaped, 12, 3, activation=tf.nn.relu, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
+							ob_reshaped = tf.layers.max_pooling3d(ob_reshaped, 2, 2)
+						# conv3d
+
+					obs.append(flatten(ob_reshaped))
+
+				obs = tf.concat(obs, axis=1)
+
+				obs = tf.layers.dense(obs, 32, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+				logits = tf.layers.dense(obs, 1)
+
+				out = tf.nn.sigmoid(logits)
+
+			else:
+				obs = tf.layers.dense(inputs, 128, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+				logits = tf.layers.dense(obs, 1, kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+				out = tf.nn.sigmoid(logits)
 
 
 			return out, logits
@@ -392,14 +422,48 @@ class CondGAN(object):
 
 	def createGenerator(self):
 
+
 		with tf.variable_scope('generator'):
 			inputs = obs = tf.placeholder(tf.float32, [None, np.sum(self.observation_space_g['size'])], 'input_g')
+
 			condition = obs[:, -10:]
 
+			if True:
 
-			obs = tf.layers.dense(obs, 128, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
-			obs = tf.layers.dense(obs, 28 * 28, kernel_initializer=tf.contrib.layers.xavier_initializer())
-			out = tf.nn.sigmoid(obs)
+				obs = tf.layers.dense(obs, 4 * 4 * 1, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+				obs = tf.reshape(obs, [-1, 4, 4, 1])
+
+				obs = tf.layers.conv2d_transpose(obs, filters=128, kernel_size=3, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
+				obs = tf.layers.batch_normalization(obs)
+				obs = tf.nn.relu(obs)
+				obs = tf.image.resize_images(obs, size=(7, 7))
+				#obs = tf.image.resize_images(obs, size=(7, 7), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
+				obs = tf.layers.conv2d_transpose(obs, filters=128, kernel_size=3, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
+				obs = tf.layers.batch_normalization(obs)
+				obs = tf.nn.relu(obs)
+				obs = tf.image.resize_images(obs, size=(14, 14))
+				#obs = tf.image.resize_images(obs, size=(14, 14), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
+				obs = tf.layers.conv2d_transpose(obs, filters=128, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
+				obs = tf.layers.batch_normalization(obs)
+				obs = tf.nn.relu(obs)
+				#obs = tf.image.resize_images(obs, size=(28, 28))
+				#obs = tf.image.resize_images(obs, size=(28, 28), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
+
+				obs = tf.layers.conv2d_transpose(obs, filters=1, kernel_size=1, padding='same', activation=None, kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
+				#obs = tf.layers.batch_normalization(obs)
+
+				out = tf.nn.sigmoid(obs)
+
+				out = tf.reshape(out, [-1, 28 * 28])
+
+			else:
+
+				obs = tf.layers.dense(obs, 128, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+				obs = tf.layers.dense(obs, np.prod(self.output_space), kernel_initializer=tf.contrib.layers.xavier_initializer())
+				out = tf.nn.sigmoid(obs)
 
 			out = tf.concat([out, condition], axis=1)
 
@@ -559,7 +623,7 @@ if __name__ == '__main__':
 						g_loss = gan.train_g(cond_noise)
 
 
-						if batch % 1000 == 0:
+						if batch % 200 == 0:
 
 							indices = np.zeros((16, num_classes))
 							b = np.asarray(range(16)) % num_classes
@@ -571,6 +635,7 @@ if __name__ == '__main__':
 							samples = gan.generate(cond_noise)
 
 							samples = samples[:, :28*28]
+							#samples = (samples - 255) * -1
 
 							fig = plot(samples)
 							plt.savefig('{}/{}.png'.format(logdir, str(batch).zfill(3)), bbox_inches='tight')
