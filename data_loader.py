@@ -22,36 +22,38 @@ class Loader(object):
 
 		self.files = glob(os.path.join('data', self.dataset, self.fname_format))
 
-		self.data = {}
+		#self.data = {}
 
 	@property
 	def length(self):
 		return len(self.files)
 
 	def get(self, filepath):
-		if filepath not in self.data:
-			arr = imread(filepath)
+		arr = imread(filepath)
 
-			# center crop image to input_size
-			h, w = arr.shape[:2]
-			i = int(round((h - self.input_size) / 2.0))
-			j = int(round((w - self.input_size) / 2.0))
+		# center crop image to input_size
+		h, w = arr.shape[:2]
+		i = int(round((h - self.input_size) / 2.0))
+		j = int(round((w - self.input_size) / 2.0))
 
-			arr = arr[j:j+self.input_size, i:i+self.input_size]
+		arr = arr[j:j+self.input_size, i:i+self.input_size]
 
-			# resize to output_size
-			if self.input_size != self.output_size:
-				arr = imresize(arr, [self.output_size, self.output_size])
+		# resize to output_size
+		if self.input_size != self.output_size:
+			arr = imresize(arr, [self.output_size, self.output_size])
 
-			if self.gray:
-				arr = rgb2gray(arr)
+		if self.gray:
+			arr = rgb2gray(arr)
 
-			if self.flatten:
-				arr = np.reshape(arr, [-1])
+		if self.flatten:
+			arr = np.reshape(arr, [-1])
 
-			self.data[filepath] = arr
+		arr = arr.astype(np.float32)/127.5 - 1
 
-		return self.data[filepath]
+		return arr
+
+		#self.data[filepath] = arr
+
 
 	def next_batch(self, batch_size):
 		if self.current + batch_size <= self.length:
