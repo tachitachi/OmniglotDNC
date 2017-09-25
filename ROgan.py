@@ -31,9 +31,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG) # set to INFO if you want fewer messages
 
 
-def conv_out_size_same(size, stride):
-  return int(math.ceil(float(size) / float(stride)))
-
 def plot(samples, h, w, c):
 	fig = plt.figure(figsize=(8, 8))
 	gs = gridspec.GridSpec(8, 8)
