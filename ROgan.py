@@ -179,17 +179,17 @@ class DCGAN(object):
 
 							ob_reshaped = tf.layers.conv2d(ob_reshaped, num_filters * 2, 3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
 							#ob_reshaped = self.d_bn1(ob_reshaped)
-							ob_reshaped = tf.layers.batch_normalization(ob_reshaped)
+							ob_reshaped = tf.layers.batch_normalization(ob_reshaped, epsilon=1e-5, momentum=0.9)
 							ob_reshaped = lrelu(ob_reshaped)
 
 							ob_reshaped = tf.layers.conv2d(ob_reshaped, num_filters * 4, 3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
 							#ob_reshaped = self.d_bn2(ob_reshaped)
-							ob_reshaped = tf.layers.batch_normalization(ob_reshaped)
+							ob_reshaped = tf.layers.batch_normalization(ob_reshaped, epsilon=1e-5, momentum=0.9)
 							ob_reshaped = lrelu(ob_reshaped)
 
 							ob_reshaped = tf.layers.conv2d(ob_reshaped, num_filters * 8, 3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
 							#ob_reshaped = self.d_bn3(ob_reshaped)
-							ob_reshaped = tf.layers.batch_normalization(ob_reshaped)
+							ob_reshaped = tf.layers.batch_normalization(ob_reshaped, epsilon=1e-5, momentum=0.9)
 							ob_reshaped = lrelu(ob_reshaped)
 
 						else:
@@ -260,22 +260,22 @@ class DCGAN(object):
 				# / 16
 				obs = tf.layers.dense(obs, s_h16 * s_w16 * num_filters * 8, kernel_initializer=tf.contrib.layers.xavier_initializer())
 				obs = tf.reshape(obs, [-1, s_h16, s_w16, num_filters * 8])
-				obs = tf.layers.batch_normalization(obs)
+				obs = tf.layers.batch_normalization(obs, epsilon=1e-5, momentum=0.9)
 				obs = tf.nn.relu(obs)
 
 				# / 8
 				obs = tf.layers.conv2d_transpose(obs, filters=num_filters * 4, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-				obs = tf.layers.batch_normalization(obs)
+				obs = tf.layers.batch_normalization(obs, epsilon=1e-5, momentum=0.9)
 				obs = tf.nn.relu(obs)
 
 				# / 4
 				obs = tf.layers.conv2d_transpose(obs, filters=num_filters * 2, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-				obs = tf.layers.batch_normalization(obs)
+				obs = tf.layers.batch_normalization(obs, epsilon=1e-5, momentum=0.9)
 				obs = tf.nn.relu(obs)
 
 				# / 2
 				obs = tf.layers.conv2d_transpose(obs, filters=num_filters * 1, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-				obs = tf.layers.batch_normalization(obs)
+				obs = tf.layers.batch_normalization(obs, epsilon=1e-5, momentum=0.9)
 				obs = tf.nn.relu(obs)
 
 				# / 1
