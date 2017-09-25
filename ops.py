@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import math
 
 def conv2d(x, num_filters, name, filter_size=(3, 3), stride=(1, 1), pad='SAME'):
     with tf.variable_scope(name):
@@ -39,7 +40,7 @@ def lrelu(x, leak=0.2, name="lrelu"):
         
 def batch_norm(x, mean=0, variance=1, offset=None, scale=None, variance_epsilon=1e-7):
     return tf.nn.batch_normalization(x, mean, variance, offset, scale, variance_epsilon)
-    
+
 def conv_out_size_same(size, stride):
   return int(math.ceil(float(size) / float(stride)))
         

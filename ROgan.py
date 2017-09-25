@@ -91,26 +91,12 @@ class DCGAN(object):
 
 
 		self.inputs = tf.placeholder(tf.float32, [None, np.sum(self.observation_space_d['size'])], 'input_d')
-		#self.inputs = tf.placeholder(tf.float32, [None] + list(self.observation_space_d['shapes'][0]), 'input_d')
 
 		with tf.variable_scope('g'):
-			#self.g_bn0 = batch_norm(name='g_bn0')
-			#self.g_bn1 = batch_norm(name='g_bn1')
-			#self.g_bn2 = batch_norm(name='g_bn2')
-			#self.g_bn3 = batch_norm(name='g_bn3')
-
 			self.z, self.g = self.createGenerator()
-
-			self._z, self._g = self.createGenerator(reuse=True, train=False)
-
 			self.g_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, tf.get_variable_scope().name)
 
 		with tf.variable_scope('d'):
-
-
-			#self.d_bn1 = batch_norm(name='d_bn1')
-			#self.d_bn2 = batch_norm(name='d_bn2')
-			#self.d_bn3 = batch_norm(name='d_bn3')
 
 			self.d_real, d_real_logits = self.createDiscriminator(self.inputs)
 			self.d_fake, d_fake_logits = self.createDiscriminator(self.g, reuse=True)
@@ -144,22 +130,7 @@ class DCGAN(object):
 		with tf.variable_scope('discriminator', reuse=reuse):
 			#inputs = x = tf.placeholder(tf.float32, [None, np.sum(self.observation_space_d['size'])], 'input_d')
 
-			if False:
-				self.df_dim = 64
-				image = tf.reshape(inputs, [-1] + list(self.observation_space_d['shapes'][0]))
-				#image = inputs
-				h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
-				h1 = lrelu(self.d_bn1(conv2d(h0, self.df_dim*2, name='d_h1_conv')))
-				h2 = lrelu(self.d_bn2(conv2d(h1, self.df_dim*4, name='d_h2_conv')))
-				h3 = lrelu(self.d_bn3(conv2d(h2, self.df_dim*8, name='d_h3_conv')))
-				print(h3)
-				#h4 = linear(tf.reshape(h3, [self.batch_size, -1]), 1, 'd_h4_lin')
-				h4 = linear(flatten(h3), 1, 'd_h4_lin')
-
-				logits = h4
-				out = tf.nn.sigmoid(h4)
-
-			elif True:
+			if True:
 				inputs = tf.split(inputs, self.observation_space_d['size'], axis=1)
 
 				num_filters = 64
@@ -281,41 +252,6 @@ class DCGAN(object):
 				out = tf.nn.tanh(obs)
 				out = tf.reshape(out, [-1, np.prod(self.output_space)])
 
-
-			elif False:
-
-
-				z = inputs
-
-				# project `z` and reshape
-				z_, h0_w, h0_b = linear(
-					z, self.gf_dim*8*s_h16*s_w16, 'g_h0_lin', with_w=True)
-
-				h0 = tf.reshape(
-					z_, [-1, s_h16, s_w16, self.gf_dim * 8])
-				h0 = tf.nn.relu(self.g_bn0(h0))
-
-				h1, h1_w, h1_b = deconv2d(
-					h0, [self.batch_size, s_h8, s_w8, self.gf_dim*4], name='g_h1', with_w=True)
-				h1 = tf.nn.relu(self.g_bn1(h1, train=train))
-
-				h2, h2_w, h2_b = deconv2d(
-					h1, [self.batch_size, s_h4, s_w4, self.gf_dim*2], name='g_h2', with_w=True)
-				h2 = tf.nn.relu(self.g_bn2(h2, train=train))
-
-				h3, h3_w, h3_b = deconv2d(
-					h2, [self.batch_size, s_h2, s_w2, self.gf_dim*1], name='g_h3', with_w=True)
-				h3 = tf.nn.relu(self.g_bn3(h3, train=train))
-
-				h4, self.h4_w, self.h4_b = deconv2d(
-					h3, [self.batch_size, s_h, s_w, self.output_space[-1]], name='g_h4', with_w=True)
-
-				#return tf.nn.tanh(h4)
-				out = tf.nn.tanh(h4)
-				#out = tf.nn.sigmoid(h4)
-
-				#out = tf.reshape(out, [-1, np.prod(self.output_space)])
-
 			else:
 
 				obs = tf.layers.dense(obs, 256, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
@@ -341,11 +277,6 @@ class DCGAN(object):
 	def generate(self, inputs):
 		sess = tf.get_default_session()
 		out = sess.run(self.g, {self.z: inputs})
-		return out
-
-	def sample(self, inputs):
-		sess = tf.get_default_session()
-		out = sess.run(self._g, {self._z: inputs})
 		return out
 
 	def predict(self, inputs):
@@ -488,7 +419,7 @@ if __name__ == '__main__':
 							#print(d_loss, g_loss1, g_loss2)
 
 							#noise = np.random.normal(0, 1.0, (batch_size, rand_size))
-							samples = gan.sample(sample_noise)
+							samples = gan.generate(sample_noise)
 
 							#print(samples)
 
