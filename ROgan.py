@@ -17,8 +17,8 @@ from tensorflow.examples.tutorials.mnist import input_data
 from scipy.misc import imresize, imsave, imread
 from skimage.color import rgb2gray
 
-#from ops import *
-from dcgan_ops import *
+from ops import *
+#from dcgan_ops import *
 
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -29,10 +29,6 @@ logging.basicConfig(level=logging.INFO)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG) # set to INFO if you want fewer messages
-
-def flatten(x):
-	return tf.reshape(x, [-1, np.prod(x.get_shape().as_list()[1:])])
-
 
 
 def conv_out_size_same(size, stride):
@@ -101,10 +97,10 @@ class DCGAN(object):
 		#self.inputs = tf.placeholder(tf.float32, [None] + list(self.observation_space_d['shapes'][0]), 'input_d')
 
 		with tf.variable_scope('g'):
-			self.g_bn0 = batch_norm(name='g_bn0')
-			self.g_bn1 = batch_norm(name='g_bn1')
-			self.g_bn2 = batch_norm(name='g_bn2')
-			self.g_bn3 = batch_norm(name='g_bn3')
+			#self.g_bn0 = batch_norm(name='g_bn0')
+			#self.g_bn1 = batch_norm(name='g_bn1')
+			#self.g_bn2 = batch_norm(name='g_bn2')
+			#self.g_bn3 = batch_norm(name='g_bn3')
 
 			self.z, self.g = self.createGenerator()
 
@@ -115,9 +111,9 @@ class DCGAN(object):
 		with tf.variable_scope('d'):
 
 
-			self.d_bn1 = batch_norm(name='d_bn1')
-			self.d_bn2 = batch_norm(name='d_bn2')
-			self.d_bn3 = batch_norm(name='d_bn3')
+			#self.d_bn1 = batch_norm(name='d_bn1')
+			#self.d_bn2 = batch_norm(name='d_bn2')
+			#self.d_bn3 = batch_norm(name='d_bn3')
 
 			self.d_real, d_real_logits = self.createDiscriminator(self.inputs)
 			self.d_fake, d_fake_logits = self.createDiscriminator(self.g, reuse=True)
@@ -182,15 +178,18 @@ class DCGAN(object):
 							ob_reshaped = lrelu(ob_reshaped)
 
 							ob_reshaped = tf.layers.conv2d(ob_reshaped, num_filters * 2, 3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-							ob_reshaped = self.d_bn1(ob_reshaped)
+							#ob_reshaped = self.d_bn1(ob_reshaped)
+							ob_reshaped = tf.layers.batch_normalization(ob_reshaped)
 							ob_reshaped = lrelu(ob_reshaped)
 
 							ob_reshaped = tf.layers.conv2d(ob_reshaped, num_filters * 4, 3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-							ob_reshaped = self.d_bn2(ob_reshaped)
+							#ob_reshaped = self.d_bn2(ob_reshaped)
+							ob_reshaped = tf.layers.batch_normalization(ob_reshaped)
 							ob_reshaped = lrelu(ob_reshaped)
 
 							ob_reshaped = tf.layers.conv2d(ob_reshaped, num_filters * 8, 3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-							ob_reshaped = self.d_bn3(ob_reshaped)
+							#ob_reshaped = self.d_bn3(ob_reshaped)
+							ob_reshaped = tf.layers.batch_normalization(ob_reshaped)
 							ob_reshaped = lrelu(ob_reshaped)
 
 						else:

@@ -33,6 +33,9 @@ def linear(x, size, name, initializer='relu', bias_init=0.0):
         b = tf.get_variable('b', [size], initializer=tf.constant_initializer(bias_init))
         
         return tf.matmul(x, W) + b
+
+def lrelu(x, leak=0.2, name="lrelu"):
+  return tf.maximum(x, leak*x)
         
 def batch_norm(x, mean=0, variance=1, offset=None, scale=None, variance_epsilon=1e-7):
     return tf.nn.batch_normalization(x, mean, variance, offset, scale, variance_epsilon)
