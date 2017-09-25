@@ -98,8 +98,10 @@ class DCGAN(object):
 
 		with tf.variable_scope('d'):
 
-			self.d_real, d_real_logits = self.createDiscriminator(self.inputs)
-			self.d_fake, d_fake_logits = self.createDiscriminator(self.g, reuse=True)
+			self.d, d_real_logits = self.createDiscriminator(self.inputs)
+			self.d, d_fake_logits = self.createDiscriminator(self.g, reuse=True)
+			#self.d_real, d_real_logits = self.createDiscriminator(self.inputs)
+			#self.d_fake, d_fake_logits = self.createDiscriminator(self.g, reuse=True)
 			self.d_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, tf.get_variable_scope().name)
 
 
@@ -108,16 +110,16 @@ class DCGAN(object):
 			self.labels = tf.placeholder(tf.float32, [None, 1])
 
 
-			#self.loss_d = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.d_logits, labels=self.labels))
-			#self.loss_g = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.d_logits, labels=tf.ones_like(self.d_logits)))
+			self.loss_d = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=d_real_logits, labels=self.labels))
+			self.loss_g = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=d_fake_logits, labels=tf.ones_like(d_fake_logits)))
 
 			#self.loss_d = -tf.reduce_mean(tf.log(self.d_real) + tf.log(1 - self.d_fake))
 			#self.loss_g = -tf.reduce_mean(tf.log(self.d_fake))
 
-			D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=d_real_logits, labels=tf.ones_like(d_real_logits)))
-			D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=d_fake_logits, labels=tf.zeros_like(d_fake_logits)))
-			self.loss_d = D_loss_real + D_loss_fake
-			self.loss_g = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=d_fake_logits, labels=tf.ones_like(d_fake_logits)))
+			#D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=d_real_logits, labels=tf.ones_like(d_real_logits)))
+			#D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=d_fake_logits, labels=tf.zeros_like(d_fake_logits)))
+			#self.loss_d = D_loss_real + D_loss_fake
+			#self.loss_g = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=d_fake_logits, labels=tf.ones_like(d_fake_logits)))
 
 			update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 			with tf.control_dependencies(update_ops):
@@ -263,10 +265,10 @@ class DCGAN(object):
 			return inputs, out
 
 
-	def train_d(self, inputs_real, inputs_noise):
+	def train_d(self, inputs, labels):
 		sess = tf.get_default_session()
 		#_, loss = sess.run([self.optimize_d, self.loss_d], {self._x: inputs, self.labels: labels})
-		_, loss = sess.run([self.optimize_d, self.loss_d], {self.inputs: inputs_real, self.z: inputs_noise})
+		_, loss = sess.run([self.optimize_d, self.loss_d], {self.inputs: inputs, self.labels: labels})
 		return loss
 
 	def train_g(self, inputs):
@@ -284,11 +286,15 @@ class DCGAN(object):
 		out = sess.run(self.d, {self.inputs: inputs})
 		return out
 
-	def losses(self, inputs_real, inputs_noise):
+	def losses_g(self, inputs_noise):
 		sess = tf.get_default_session()
 		#_, loss = sess.run([self.optimize_d, self.loss_d], {self._x: inputs, self.labels: labels})
-		loss_d, loss_g = sess.run([self.loss_d, self.loss_g], {self.inputs: inputs_real, self.z: inputs_noise})
-		return loss_d, loss_g
+		return sess.run(self.loss_g, {self.z: inputs_noise})
+
+	def losses_d(self, inputs, labels):
+		sess = tf.get_default_session()
+		#_, loss = sess.run([self.optimize_d, self.loss_d], {self._x: inputs, self.labels: labels})
+		return sess.run(self.loss_d, {self.inputs: inputs, self.labels: labels})
 
 
 
@@ -398,7 +404,14 @@ if __name__ == '__main__':
 					if True: # train DCGAN
 						noise = np.random.uniform(-1.0, 1.0, (batch_size, rand_size))
 						#noise = np.random.normal(0, 1.0, (batch_size, rand_size))
-						d_loss = gan.train_d(batch_xs, noise)
+						samples = gan.generate(noise)
+
+						train_batch = np.concatenate([batch_xs, samples], axis=0)
+						labels = np.ones((batch_size * 2, 1))
+						labels[batch_size:,:] = 0
+
+
+						d_loss = gan.train_d(train_batch, labels)
 
 						#print(batch_xs)
 
@@ -410,7 +423,9 @@ if __name__ == '__main__':
 						#noise = np.random.normal(0, 1.0, (batch_size, rand_size))
 						g_loss2 = gan.train_g(noise)
 
-						loss_d, loss_g = gan.losses(batch_xs, noise)
+						#loss_d, loss_g = gan.losses(batch_xs, noise)
+						loss_d = gan.losses_d(train_batch, labels)
+						loss_g = gan.losses_g(noise)
 						print('Batch: %4d, d_loss: %.8f, g_loss: %.8f' % (batch, loss_d, loss_g))
 
 
