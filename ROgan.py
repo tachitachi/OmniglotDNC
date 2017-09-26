@@ -51,41 +51,13 @@ def plot(samples, h, w, c):
 	return fig
 
 
-def getRandomItem(itemdir, batch_size):
-	for root, dirs, files in os.walk(itemdir):
-
-
-		arrs = []
-
-		randomFiles = np.random.choice(files, batch_size, replace=False)
-
-		for file in randomFiles:
-			filepath = os.path.join(root, file)
-
-			arr = imread(filepath)
-			arr = rgb2gray(arr)
-
-			if np.random.random() < 0.5:
-				arr = np.flip(arr, 0)
-			if np.random.random() < 0.5:
-				arr = np.flip(arr, 1)
-
-			#print(arr.shape)
-			#arr = arr[:,:,:3]
-			arr = np.reshape(arr, [-1])
-			arrs.append(arr)
-
-		return np.array(arrs)
-
-
-
-
-
 class DCGAN(object):
-	def __init__(self, observation_space_d, observation_space_g, output_space, learning_rate=0.0002, momentum=0.5):
+	def __init__(self, observation_space_d, observation_space_g, output_space, d_layers=4, g_layers=4, learning_rate=0.0002, momentum=0.5):
 		self.observation_space_d = observation_space_d
 		self.observation_space_g = observation_space_g
 		self.output_space = output_space
+		self.d_layers = d_layers
+		self.g_layers = g_layers
 
 		self.learning_rate = learning_rate
 		self.momentum = momentum
@@ -113,14 +85,6 @@ class DCGAN(object):
 			self.loss_d = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=d_real_logits, labels=self.labels))
 			self.loss_g = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=d_fake_logits, labels=tf.ones_like(d_fake_logits)))
 
-			#self.loss_d = -tf.reduce_mean(tf.log(self.d_real) + tf.log(1 - self.d_fake))
-			#self.loss_g = -tf.reduce_mean(tf.log(self.d_fake))
-
-			#D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=d_real_logits, labels=tf.ones_like(d_real_logits)))
-			#D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=d_fake_logits, labels=tf.zeros_like(d_fake_logits)))
-			#self.loss_d = D_loss_real + D_loss_fake
-			#self.loss_g = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=d_fake_logits, labels=tf.ones_like(d_fake_logits)))
-
 			update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 			with tf.control_dependencies(update_ops):
 				self.optimize_d = tf.train.AdamOptimizer(self.learning_rate, beta1=self.momentum).minimize(self.loss_d, var_list=self.d_params)
@@ -142,35 +106,13 @@ class DCGAN(object):
 					ob_reshaped = tf.reshape(ob, [-1] + list(shape))
 					if len(shape) == 3:
 						# conv2d
+						for i in range(self.d_layers):
+							ob_reshaped = tf.layers.conv2d(ob_reshaped, num_filters * (2**i), 3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
+							
+							if i != 0:
+								ob_reshaped = tf.layers.batch_normalization(ob_reshaped, epsilon=1e-5, momentum=0.9)
 
-						if True:
-							ob_reshaped = tf.layers.conv2d(ob_reshaped, num_filters, 3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
 							ob_reshaped = lrelu(ob_reshaped)
-
-							ob_reshaped = tf.layers.conv2d(ob_reshaped, num_filters * 2, 3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-							#ob_reshaped = self.d_bn1(ob_reshaped)
-							ob_reshaped = tf.layers.batch_normalization(ob_reshaped, epsilon=1e-5, momentum=0.9)
-							ob_reshaped = lrelu(ob_reshaped)
-
-							ob_reshaped = tf.layers.conv2d(ob_reshaped, num_filters * 4, 3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-							#ob_reshaped = self.d_bn2(ob_reshaped)
-							ob_reshaped = tf.layers.batch_normalization(ob_reshaped, epsilon=1e-5, momentum=0.9)
-							ob_reshaped = lrelu(ob_reshaped)
-
-							ob_reshaped = tf.layers.conv2d(ob_reshaped, num_filters * 8, 3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-							#ob_reshaped = self.d_bn3(ob_reshaped)
-							ob_reshaped = tf.layers.batch_normalization(ob_reshaped, epsilon=1e-5, momentum=0.9)
-							ob_reshaped = lrelu(ob_reshaped)
-
-						else:
-							for i in range(3):
-								ob_reshaped = tf.layers.conv2d(ob_reshaped, num_filters * (2**i), 3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-								
-								#if ob_reshaped.shape[1] > 1 and ob_reshaped.shape[2] > 1:
-								#	ob_reshaped = tf.layers.max_pooling2d(ob_reshaped, 2, 2)
-								ob_reshaped = tf.layers.batch_normalization(ob_reshaped)
-								#ob_reshaped = tf.nn.relu(ob_reshaped)
-								ob_reshaped = lrelu(ob_reshaped)
 
 					elif len(shape) == 4:
 						for i in range(2):
@@ -181,30 +123,14 @@ class DCGAN(object):
 					obs.append(flatten(ob_reshaped))
 
 				obs = tf.concat(obs, axis=1)
-
 				obs = tf.layers.dense(obs, 128, activation=lrelu, kernel_initializer=tf.contrib.layers.xavier_initializer())
-
 				logits = tf.layers.dense(obs, 1)
-
 				out = tf.nn.sigmoid(logits)
 
 			else:
-				if False:
-					obs = inputs
-					#obs = tf.layers.dense(inputs, 256, activation=lrelu, kernel_initializer=tf.contrib.layers.xavier_initializer())
-					#obs = tf.layers.dropout(obs, rate=0.4)
-					obs = tf.layers.dense(obs, 128, activation=lrelu, kernel_initializer=tf.contrib.layers.xavier_initializer())
-					#obs = tf.layers.dropout(obs, rate=0.4)
-					logits = tf.layers.dense(obs, 1, kernel_initializer=tf.contrib.layers.xavier_initializer())
-
-					out = tf.nn.sigmoid(logits)
-				else:
-
-					obs = tf.layers.dense(inputs, 128, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
-					logits = tf.layers.dense(obs, 1, kernel_initializer=tf.contrib.layers.xavier_initializer())
-
-					out = tf.nn.sigmoid(logits)
-
+				obs = tf.layers.dense(inputs, 128, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+				logits = tf.layers.dense(obs, 1, kernel_initializer=tf.contrib.layers.xavier_initializer())
+				out = tf.nn.sigmoid(logits)
 
 			return out, logits
 
@@ -222,77 +148,40 @@ class DCGAN(object):
 
 
 			s_h, s_w = self.output_space[:2]
-			s_h2, s_w2 = conv_out_size_same(s_h, 2), conv_out_size_same(s_w, 2)
-			s_h4, s_w4 = conv_out_size_same(s_h2, 2), conv_out_size_same(s_w2, 2)
-			s_h8, s_w8 = conv_out_size_same(s_h4, 2), conv_out_size_same(s_w4, 2)
-			s_h16, s_w16 = conv_out_size_same(s_h8, 2), conv_out_size_same(s_w8, 2)
 
-			print(s_h, s_w)
-			print(s_h2, s_w2)
-			print(s_h4, s_w4)
-			print(s_h8, s_w8)
-			print(s_h16, s_w16)
+			hw = [(s_h, s_w, 0.5)]
+			for i in range(self.g_layers):
+				h, w, n = hw[-1]
+				s_h2, s_w2 = conv_out_size_same(w, 2), conv_out_size_same(w, 2)
+				hw.append((s_h2, s_w2, int(n * 2)))
 
+			hw.pop(0)
+			hw.reverse()
 
 			#condition = obs[:, -10:]
 
 			num_filters = 64
 
 			if True:
-				# / 16
-				#obs = tf.layers.dense(obs, s_h16 * s_w16 * num_filters * 8, kernel_initializer=tf.contrib.layers.xavier_initializer())
-				#obs = tf.reshape(obs, [-1, s_h16, s_w16, num_filters * 8])
-				#obs = tf.layers.batch_normalization(obs, epsilon=1e-5, momentum=0.9)
-				#obs = tf.nn.relu(obs)
 
-				#if False and concatCondition:
-				#	obs = conv_cond_concat(obs, yb)
+				for i in range(len(hw)):
+					h, w, n = hw[i]
 
-				#print(obs)
+					if i == 0:
+						obs = tf.layers.dense(obs, h * w * num_filters * n, kernel_initializer=tf.contrib.layers.xavier_initializer())
+						obs = tf.reshape(obs, [-1, h, w, num_filters * n])
+						obs = tf.layers.batch_normalization(obs, epsilon=1e-5, momentum=0.9)
+						obs = tf.nn.relu(obs)
+					else:
+						obs = tf.layers.conv2d_transpose(obs, filters=num_filters * n, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
+						obs = tf.layers.batch_normalization(obs, epsilon=1e-5, momentum=0.9)
+						obs = tf.nn.relu(obs)
 
-
-
-				# / 8
-				#obs = tf.layers.conv2d_transpose(obs, filters=num_filters * 4, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-				#obs = tf.layers.batch_normalization(obs, epsilon=1e-5, momentum=0.9)
-				#obs = tf.nn.relu(obs)
-
-				#if False and concatCondition:
-				#	obs = conv_cond_concat(obs, yb)
-
-				#print(obs)
-
-				obs = tf.layers.dense(obs, s_h4 * s_w4 * num_filters * 2, kernel_initializer=tf.contrib.layers.xavier_initializer())
-				obs = tf.reshape(obs, [-1, s_h4, s_w4, num_filters * 2])
-				# / 4
-				#obs = tf.layers.conv2d_transpose(obs, filters=num_filters * 2, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-				obs = tf.layers.batch_normalization(obs, epsilon=1e-5, momentum=0.9)
-				obs = tf.nn.relu(obs)
-
-				if False and concatCondition:
-					obs = conv_cond_concat(obs, yb)
-
-				print(obs)
-
-				# / 2
-				obs = tf.layers.conv2d_transpose(obs, filters=num_filters * 1, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-				obs = tf.layers.batch_normalization(obs, epsilon=1e-5, momentum=0.9)
-				obs = tf.nn.relu(obs)
-
-				if False and concatCondition:
-					obs = conv_cond_concat(obs, yb)
-
-				print(obs)
-
-				# / 1
 				obs = tf.layers.conv2d_transpose(obs, filters=self.output_space[-1], kernel_size=3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
 				
-
 				# resize if not the right size
 				if obs.shape[1] != self.output_space[0] or obs.shape[2] != self.output_space[1]:
 					obs = tf.image.resize_images(obs, size=(self.output_space[0], self.output_space[1]), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
-
-				print(obs)
 
 				out = tf.nn.tanh(obs)
 				out = tf.reshape(out, [-1, np.prod(self.output_space)])
@@ -405,7 +294,7 @@ if __name__ == '__main__':
 
 
 	#gan = DCGAN(observation_space_d, observation_space_g, output_space)
-	gan = DCGAN(observation_space_d, observation_space_g, output_space)
+	gan = DCGAN(observation_space_d, observation_space_g, output_space, d_layers=4, g_layers=2)
 
 
 
