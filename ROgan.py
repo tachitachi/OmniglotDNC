@@ -82,13 +82,13 @@ def getRandomItem(itemdir, batch_size):
 
 
 class DCGAN(object):
-	def __init__(self, observation_space_d, observation_space_g, output_space, batch_size=32):
+	def __init__(self, observation_space_d, observation_space_g, output_space, learning_rate=0.0002, momentum=0.5):
 		self.observation_space_d = observation_space_d
 		self.observation_space_g = observation_space_g
 		self.output_space = output_space
 
-		self.batch_size = batch_size
-
+		self.learning_rate = learning_rate
+		self.momentum = momentum
 
 		self.inputs = tf.placeholder(tf.float32, [None, np.sum(self.observation_space_d['size'])], 'input_d')
 
@@ -99,7 +99,7 @@ class DCGAN(object):
 		with tf.variable_scope('d'):
 
 			self.d, d_real_logits = self.createDiscriminator(self.inputs)
-			self.d, d_fake_logits = self.createDiscriminator(self.g, reuse=True)
+			self._d, d_fake_logits = self.createDiscriminator(self.g, reuse=True)
 			#self.d_real, d_real_logits = self.createDiscriminator(self.inputs)
 			#self.d_fake, d_fake_logits = self.createDiscriminator(self.g, reuse=True)
 			self.d_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, tf.get_variable_scope().name)
@@ -123,8 +123,8 @@ class DCGAN(object):
 
 			update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 			with tf.control_dependencies(update_ops):
-				self.optimize_d = tf.train.AdamOptimizer(0.0002, beta1=0.5).minimize(self.loss_d, var_list=self.d_params)
-				self.optimize_g = tf.train.AdamOptimizer(0.0002, beta1=0.5).minimize(self.loss_g, var_list=self.g_params)
+				self.optimize_d = tf.train.AdamOptimizer(self.learning_rate, beta1=self.momentum).minimize(self.loss_d, var_list=self.d_params)
+				self.optimize_g = tf.train.AdamOptimizer(self.learning_rate, beta1=self.momentum).minimize(self.loss_g, var_list=self.g_params)
 
 
 
@@ -182,21 +182,28 @@ class DCGAN(object):
 
 				obs = tf.concat(obs, axis=1)
 
-				#obs = tf.layers.dense(obs, 128)
+				obs = tf.layers.dense(obs, 128, activation=lrelu, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
 				logits = tf.layers.dense(obs, 1)
 
 				out = tf.nn.sigmoid(logits)
 
 			else:
-				obs = inputs
-				obs = tf.layers.dense(inputs, 256, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
-				#obs = tf.layers.dropout(obs, rate=0.4)
-				obs = tf.layers.dense(obs, 128, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
-				#obs = tf.layers.dropout(obs, rate=0.4)
-				logits = tf.layers.dense(obs, 1, kernel_initializer=tf.contrib.layers.xavier_initializer())
+				if False:
+					obs = inputs
+					#obs = tf.layers.dense(inputs, 256, activation=lrelu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+					#obs = tf.layers.dropout(obs, rate=0.4)
+					obs = tf.layers.dense(obs, 128, activation=lrelu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+					#obs = tf.layers.dropout(obs, rate=0.4)
+					logits = tf.layers.dense(obs, 1, kernel_initializer=tf.contrib.layers.xavier_initializer())
 
-				out = tf.nn.sigmoid(logits)
+					out = tf.nn.sigmoid(logits)
+				else:
+
+					obs = tf.layers.dense(inputs, 128, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+					logits = tf.layers.dense(obs, 1, kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+					out = tf.nn.sigmoid(logits)
 
 
 			return out, logits
@@ -206,6 +213,12 @@ class DCGAN(object):
 
 		with tf.variable_scope('generator', reuse=reuse):
 			inputs = obs = tf.placeholder(tf.float32, [None, np.sum(self.observation_space_g['size'])], 'input_g')
+
+			concatCondition = False
+			if len(self.observation_space_d['size']) > 1:
+				concatCondition = True
+				condition = obs[:, -self.observation_space_d['size'][1]:]
+				yb = tf.reshape(condition, (-1, 1, 1, self.observation_space_d['size'][1]))
 
 
 			s_h, s_w = self.output_space[:2]
@@ -224,33 +237,63 @@ class DCGAN(object):
 			#condition = obs[:, -10:]
 
 			num_filters = 64
-			self.gf_dim = 64
 
 			if True:
 				# / 16
-				obs = tf.layers.dense(obs, s_h16 * s_w16 * num_filters * 8, kernel_initializer=tf.contrib.layers.xavier_initializer())
-				obs = tf.reshape(obs, [-1, s_h16, s_w16, num_filters * 8])
-				obs = tf.layers.batch_normalization(obs, epsilon=1e-5, momentum=0.9)
-				obs = tf.nn.relu(obs)
+				#obs = tf.layers.dense(obs, s_h16 * s_w16 * num_filters * 8, kernel_initializer=tf.contrib.layers.xavier_initializer())
+				#obs = tf.reshape(obs, [-1, s_h16, s_w16, num_filters * 8])
+				#obs = tf.layers.batch_normalization(obs, epsilon=1e-5, momentum=0.9)
+				#obs = tf.nn.relu(obs)
+
+				#if False and concatCondition:
+				#	obs = conv_cond_concat(obs, yb)
+
+				#print(obs)
+
+
 
 				# / 8
-				obs = tf.layers.conv2d_transpose(obs, filters=num_filters * 4, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
+				#obs = tf.layers.conv2d_transpose(obs, filters=num_filters * 4, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
+				#obs = tf.layers.batch_normalization(obs, epsilon=1e-5, momentum=0.9)
+				#obs = tf.nn.relu(obs)
+
+				#if False and concatCondition:
+				#	obs = conv_cond_concat(obs, yb)
+
+				#print(obs)
+
+				obs = tf.layers.dense(obs, s_h4 * s_w4 * num_filters * 2, kernel_initializer=tf.contrib.layers.xavier_initializer())
+				obs = tf.reshape(obs, [-1, s_h4, s_w4, num_filters * 2])
+				# / 4
+				#obs = tf.layers.conv2d_transpose(obs, filters=num_filters * 2, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
 				obs = tf.layers.batch_normalization(obs, epsilon=1e-5, momentum=0.9)
 				obs = tf.nn.relu(obs)
 
-				# / 4
-				obs = tf.layers.conv2d_transpose(obs, filters=num_filters * 2, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-				obs = tf.layers.batch_normalization(obs, epsilon=1e-5, momentum=0.9)
-				obs = tf.nn.relu(obs)
+				if False and concatCondition:
+					obs = conv_cond_concat(obs, yb)
+
+				print(obs)
 
 				# / 2
 				obs = tf.layers.conv2d_transpose(obs, filters=num_filters * 1, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
 				obs = tf.layers.batch_normalization(obs, epsilon=1e-5, momentum=0.9)
 				obs = tf.nn.relu(obs)
 
+				if False and concatCondition:
+					obs = conv_cond_concat(obs, yb)
+
+				print(obs)
+
 				# / 1
 				obs = tf.layers.conv2d_transpose(obs, filters=self.output_space[-1], kernel_size=3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
 				
+
+				# resize if not the right size
+				if obs.shape[1] != self.output_space[0] or obs.shape[2] != self.output_space[1]:
+					obs = tf.image.resize_images(obs, size=(self.output_space[0], self.output_space[1]), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
+				print(obs)
+
 				out = tf.nn.tanh(obs)
 				out = tf.reshape(out, [-1, np.prod(self.output_space)])
 
@@ -258,9 +301,11 @@ class DCGAN(object):
 
 				obs = tf.layers.dense(obs, 256, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
 				obs = tf.layers.dense(obs, np.prod(self.output_space), kernel_initializer=tf.contrib.layers.xavier_initializer())
-				out = tf.nn.sigmoid(obs)
+				out = tf.nn.tanh(obs)
 
-			#out = tf.concat([out, condition], axis=1)
+			if concatCondition:
+				print('conditioning')
+				out = tf.concat([out, condition], axis=1)
 
 			return inputs, out
 
@@ -279,6 +324,15 @@ class DCGAN(object):
 	def generate(self, inputs):
 		sess = tf.get_default_session()
 		out = sess.run(self.g, {self.z: inputs})
+		return out
+
+	def sample(self, inputs):
+		sess = tf.get_default_session()
+		out = sess.run(self.g, {self.z: inputs})
+
+		if len(self.observation_space_d['size']) > 1:
+			out = out[:, :-self.observation_space_d['size'][1]]
+
 		return out
 
 	def predict(self, inputs):
@@ -320,21 +374,29 @@ if __name__ == '__main__':
 	#print(randomItem)
 	#sys.exit(1)
 
-	loader = Loader('celebA', 108, 64, '*.jpg', flatten=True, gray=False)
-	#loader = Loader('clean_items', 24, 24, '*.png', flatten=False, gray=False)
-	#mnist = input_data.read_data_sets(args.datadir, one_hot=True)
+	#loader = Loader('celebA', 108, 64, '*.jpg', flatten=True, gray=False)
+	#loader = Loader('clean_items', 24, 64, '*.png', flatten=True, gray=False)
+	mnist = input_data.read_data_sets(args.datadir, one_hot=True)
 
 	rand_size = 100
 	num_classes = 10
 
-	output_space = (64, 64, 3)
-	#output_space = (24, 24, 4)
-	#output_space = (28, 28, 1)
+	useConditions = True
+
+	#output_space = (64, 64, 3)
+	#output_space = (64, 64, 4)
+	output_space = (28, 28, 1)
 
 	#observation_space_d = {'shapes': [(24, 24, 3), (num_classes,)], 'size': [28 * 28, num_classes]}
 	#observation_space_g = {'shapes': [(rand_size + num_classes,)], 'size': [rand_size  + num_classes]}
-	observation_space_d = {'shapes': [output_space], 'size': [np.prod(output_space)]}
-	observation_space_g = {'shapes': [(rand_size,)], 'size': [rand_size]}
+
+	if useConditions:
+		observation_space_d = {'shapes': [output_space, (num_classes,)], 'size': [np.prod(output_space), num_classes]}
+		observation_space_g = {'shapes': [(rand_size + num_classes,)], 'size': [rand_size + num_classes]}
+	else:
+		observation_space_d = {'shapes': [output_space], 'size': [np.prod(output_space)]}
+		observation_space_g = {'shapes': [(rand_size,)], 'size': [rand_size]}
+
 
 
 
@@ -343,8 +405,7 @@ if __name__ == '__main__':
 
 
 	#gan = DCGAN(observation_space_d, observation_space_g, output_space)
-	gan = DCGAN(observation_space_d, observation_space_g, output_space, batch_size=batch_size)
-
+	gan = DCGAN(observation_space_d, observation_space_g, output_space)
 
 
 
@@ -387,148 +448,98 @@ if __name__ == '__main__':
 
 			sample_noise = np.random.uniform(-1.0, 1.0, (batch_size, rand_size))
 
+			indices = np.zeros((batch_size, num_classes))
+			b = np.asarray(range(batch_size)) % num_classes
+			indices[np.arange(len(indices)), b] = 1
+
+			# conditions
+			if useConditions:
+				sample_noise = np.concatenate([sample_noise, indices], axis=1)
+
 			for batch in range(num_batches):
 
 
 
+				#batch_xs = loader.next_batch(batch_size)
 				#batch_xs = getRandomItem(itemdir, batch_size)
-				#batch_xs, _ = mnist.train.next_batch(batch_size)
-				batch_xs = loader.next_batch(batch_size)
+				
+				batch_xs, batch_ys = mnist.train.next_batch(batch_size)
+
+				# scale mnist data to -1 to 1
+				batch_xs = (batch_xs * 2) - 1
+
+				if useConditions:
+					# add conditional
+					wrong_labels = np.roll(batch_ys, np.random.choice(num_classes / 2) + 1)
+					reals = np.concatenate([batch_xs, batch_ys], axis=1)
+					wrongs = np.concatenate([batch_xs, wrong_labels], axis=1)
+
 
 				#print(batch_xs.shape, batch_ys.shape)
 
 				# create noise vectors z
 
-				if True:
+				if True: # train DCGAN
+					noise = np.random.uniform(-1.0, 1.0, (batch_size, rand_size))
+					if useConditions:
+						# append condition
+						noise = np.concatenate([noise, batch_ys], axis=1)
 
-					if True: # train DCGAN
-						noise = np.random.uniform(-1.0, 1.0, (batch_size, rand_size))
-						#noise = np.random.normal(0, 1.0, (batch_size, rand_size))
-						samples = gan.generate(noise)
+					samples = gan.generate(noise)
 
+					#print(batch_xs.shape, samples.shape)
+
+					if useConditions:
+						train_batch = np.concatenate([reals, wrongs, samples], axis=0)
+						#train_batch = np.concatenate([reals, wrongs], axis=0)
+					else:
 						train_batch = np.concatenate([batch_xs, samples], axis=0)
-						labels = np.ones((batch_size * 2, 1))
-						labels[batch_size:,:] = 0
 
 
-						d_loss = gan.train_d(train_batch, labels)
-
-						#print(batch_xs)
-
-						#noise = np.random.uniform(-1.0, 1.0, (batch_size, rand_size))
-						#noise = np.random.normal(0, 1.0, (batch_size, rand_size))
-						g_loss1 = gan.train_g(noise)
-
-						#noise = np.random.uniform(0, 1.0, (batch_size, rand_size))
-						#noise = np.random.normal(0, 1.0, (batch_size, rand_size))
-						g_loss2 = gan.train_g(noise)
-
-						#loss_d, loss_g = gan.losses(batch_xs, noise)
-						loss_d = gan.losses_d(train_batch, labels)
-						loss_g = gan.losses_g(noise)
-						print('Batch: %4d, d_loss: %.8f, g_loss: %.8f' % (batch, loss_d, loss_g))
-
-
-						if batch % 100 == 0:
-
-							#print(d_loss, g_loss1, g_loss2)
-
-							#noise = np.random.normal(0, 1.0, (batch_size, rand_size))
-							samples = gan.generate(sample_noise)
-
-							#print(samples)
-
-							samples = (samples[0:64]+1) / 2.0
-							reals = (batch_xs[0:64]+1) / 2.0
-
-							print(np.min(samples), np.max(samples), np.min(reals), np.max(reals))
-
-							#samples = (samples * 255).astype(np.int32)
-							#print(np.max(samples, 1), np.min(samples, 1))
-
-							fig = plot(samples, *output_space)
-							plt.savefig('{}/{}.png'.format(logdir, str(batch).zfill(3)), bbox_inches='tight')
-							plt.close(fig)
-
-
-							fig = plot(reals, *output_space)
-							plt.savefig('{}/{}_real.png'.format(logdir, str(batch).zfill(3)), bbox_inches='tight')
-							plt.close(fig)
-
-					else: # train CondGAN
-						noise = np.random.uniform(-1.0, 1.0, (batch_size, rand_size))
-						cond_noise = np.concatenate([noise, batch_ys], axis=1)
-						fake_samples = gan.generate(cond_noise)
-
+					if useConditions:
 						labels = np.ones((batch_size * 3, 1))
-						labels[batch_size:,:] = 0
-
-						wrong_labels = np.roll(batch_ys, np.random.choice(num_classes / 2) + 1)
-
-						#print(batch_ys[:3,:])
-						#print(wrong_labels[:3,:])
-						#print
-
-						reals = np.concatenate([batch_xs, batch_ys], axis=1)
-						wrongs = np.concatenate([batch_xs, wrong_labels], axis=1)
-						#fakes = np.concatenate([fake_samples, batch_ys], axis=1)
-						fakes = fake_samples
-
-						#print(reals.shape, fakes.shape)
-
-						all_samples = np.concatenate([reals, wrongs, fakes], axis=0)
-
-						d_loss = gan.train_d(all_samples, labels)
-
-						#noise = np.random.uniform(-1.0, 1.0, (batch_size, rand_size))
-						g_loss = gan.train_g(cond_noise)
+						#labels = np.ones((batch_size * 2, 1))
+					else:
+						labels = np.ones((batch_size * 2, 1))
 
 
-						if batch % 1000 == 0:
+					labels[batch_size:,:] = 0
 
-							indices = np.zeros((16, num_classes))
-							b = np.asarray(range(16)) % num_classes
-							indices[np.arange(len(indices)), b] = 1
+					#print(labels)
 
 
-							noise = np.random.uniform(-1.0, 1.0, (16, rand_size))
-							cond_noise = np.concatenate([noise, indices], axis=1)
-							samples = gan.generate(cond_noise)
-
-							samples = samples[:, :28*28]
-							samples = (samples - 255) * -1
-
-							fig = plot(samples)
-							plt.savefig('{}/{}.png'.format(logdir, str(batch).zfill(3)), bbox_inches='tight')
-							plt.close(fig)
+					d_loss = gan.train_d(train_batch, labels)
 
 
-					#if batch % 100 == 0:
-					#	print(d_loss, g_loss)
+					g_loss1 = gan.train_g(noise)
+					g_loss2 = gan.train_g(noise)
+					#g_loss3 = gan.train_g(noise)
 
-
-
-
-
-				if False:
-
-					_, D_loss_curr = sess.run([D_solver, D_loss], feed_dict={X: batch_xs, Z: sample_Z(batch_size, rand_size)})
-					_, G_loss_curr = sess.run([G_solver, G_loss], feed_dict={Z: sample_Z(batch_size, rand_size)})
+					loss_d = gan.losses_d(train_batch, labels)
+					loss_g = gan.losses_g(noise)
+					print('Batch: %4d, d_loss: %.8f, g_loss: %.8f' % (batch, loss_d, loss_g))
 
 
 					if batch % 100 == 0:
-						print(D_loss_curr, G_loss_curr)
 
-					
-					if batch % 1000 == 0:
+						splits = np.array_split(gan.predict(train_batch), 3, axis=0)
+						print(np.mean(splits, axis=1))
 
-						samples = sess.run(G_sample, feed_dict={Z: sample_Z(16, rand_size)})
+						#print(gan.predict(train_batch))
 
-						#noise = np.random.uniform(-1.0, 1.0, (16, rand_size))
-						#samples = gan.generate(noise)
+						samples = gan.sample(sample_noise)
 
-						fig = plot(samples)
+						samples = (samples[0:64]+1) / 2.0
+						reals = (batch_xs[0:64]+1) / 2.0
+
+						print(np.min(samples), np.max(samples), np.min(reals), np.max(reals))
+
+						fig = plot(samples, *output_space)
 						plt.savefig('{}/{}.png'.format(logdir, str(batch).zfill(3)), bbox_inches='tight')
+						plt.close(fig)
+
+						fig = plot(reals, *output_space)
+						plt.savefig('{}/{}_real.png'.format(logdir, str(batch).zfill(3)), bbox_inches='tight')
 						plt.close(fig)
 
 

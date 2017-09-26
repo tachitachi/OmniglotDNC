@@ -428,7 +428,7 @@ class CondGAN(object):
 
 			condition = obs[:, -10:]
 
-			if True:
+			if False:
 
 				obs = tf.layers.dense(obs, 4 * 4 * 1, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
 				obs = tf.reshape(obs, [-1, 4, 4, 1])
