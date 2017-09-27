@@ -115,20 +115,24 @@ class DCGAN(object):
 							ob_reshaped = lrelu(ob_reshaped)
 
 					elif len(shape) == 4:
-						for i in range(2):
-							ob_reshaped = tf.layers.conv3d(ob_reshaped, 12, 3, activation=tf.nn.relu, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-							ob_reshaped = tf.layers.max_pooling3d(ob_reshaped, 2, 2)
+						for i in range(self.d_layers):
+							ob_reshaped = tf.layers.conv3d(ob_reshaped, num_filters * (2**i), 3, strides=2, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
+							
+							if i != 0:
+								ob_reshaped = tf.layers.batch_normalization(ob_reshaped, epsilon=1e-5, momentum=0.9)
+
+							ob_reshaped = lrelu(ob_reshaped)
 						# conv3d
 
 					obs.append(flatten(ob_reshaped))
 
 				obs = tf.concat(obs, axis=1)
-				obs = tf.layers.dense(obs, 128, activation=lrelu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+				obs = tf.layers.dense(obs, 256, activation=lrelu, kernel_initializer=tf.contrib.layers.xavier_initializer())
 				logits = tf.layers.dense(obs, 1)
 				out = tf.nn.sigmoid(logits)
 
 			else:
-				obs = tf.layers.dense(inputs, 128, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+				obs = tf.layers.dense(inputs, 256, activation=lrelu, kernel_initializer=tf.contrib.layers.xavier_initializer())
 				logits = tf.layers.dense(obs, 1, kernel_initializer=tf.contrib.layers.xavier_initializer())
 				out = tf.nn.sigmoid(logits)
 
@@ -147,22 +151,23 @@ class DCGAN(object):
 				yb = tf.reshape(condition, (-1, 1, 1, self.observation_space_d['size'][1]))
 
 
-			s_h, s_w = self.output_space[:2]
+			if len(self.output_space) == 3:
 
-			hw = [(s_h, s_w, 0.5)]
-			for i in range(self.g_layers):
-				h, w, n = hw[-1]
-				s_h2, s_w2 = conv_out_size_same(w, 2), conv_out_size_same(w, 2)
-				hw.append((s_h2, s_w2, int(n * 2)))
+				s_h, s_w = self.output_space[:2]
 
-			hw.pop(0)
-			hw.reverse()
+				hw = [(s_h, s_w, 0.5)]
+				for i in range(self.g_layers):
+					h, w, n = hw[-1]
+					s_h2, s_w2 = conv_out_size_same(w, 2), conv_out_size_same(w, 2)
+					hw.append((s_h2, s_w2, int(n * 2)))
 
-			#condition = obs[:, -10:]
+				hw.pop(0)
+				hw.reverse()
 
-			num_filters = 64
+				#condition = obs[:, -10:]
 
-			if True:
+				num_filters = 64
+
 
 				for i in range(len(hw)):
 					h, w, n = hw[i]
@@ -188,7 +193,7 @@ class DCGAN(object):
 
 			else:
 
-				obs = tf.layers.dense(obs, 256, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+				obs = tf.layers.dense(obs, 256, activation=lrelu, kernel_initializer=tf.contrib.layers.xavier_initializer())
 				obs = tf.layers.dense(obs, np.prod(self.output_space), kernel_initializer=tf.contrib.layers.xavier_initializer())
 				out = tf.nn.tanh(obs)
 
@@ -380,7 +385,7 @@ if __name__ == '__main__':
 
 					if useConditions:
 						train_batch = np.concatenate([reals, wrongs, samples], axis=0)
-						#train_batch = np.concatenate([reals, wrongs], axis=0)
+						#train_batch = np.concatenate([reals, samples], axis=0)
 					else:
 						train_batch = np.concatenate([batch_xs, samples], axis=0)
 
@@ -412,6 +417,7 @@ if __name__ == '__main__':
 					if batch % 100 == 0:
 
 						splits = np.array_split(gan.predict(train_batch), 3, axis=0)
+						#splits = np.array_split(gan.predict(train_batch), 2, axis=0)
 						print(np.mean(splits, axis=1))
 
 						#print(gan.predict(train_batch))
