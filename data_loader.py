@@ -48,7 +48,7 @@ class Loader(object):
 		if self.flatten:
 			arr = np.reshape(arr, [-1])
 
-		arr = arr.astype(np.float32)/127.5 - 1
+		arr = arr.astype(np.float32)/ 255.0
 
 		return arr
 
