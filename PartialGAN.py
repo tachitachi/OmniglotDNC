@@ -313,6 +313,22 @@ def samplePatches(batch_xs, output_space, batch_size):
 	return samplePixels, samplePixelLocations
 
 
+def sampleSparse(batch_xs, output_space, batch_size, prob=0.2):
+	# take random crops from batch
+	#samplePixelLocations = np.zeros([batch_size] + [np.prod(output_space)])
+
+	#samplePixelLocations[:,10:14, 10:14,:] = 1
+
+	samplePixelLocations = np.random.random([batch_size] + [np.prod(output_space)]) - 0.5 + prob
+	samplePixelLocations = np.round(np.maximum(0, samplePixelLocations))
+
+	#samplePixelLocations = np.reshape(samplePixelLocations, [-1, np.prod(output_space)])
+
+	samplePixels = batch_xs * samplePixelLocations
+
+	return samplePixels, samplePixelLocations
+
+
 if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser()
@@ -553,4 +569,40 @@ if __name__ == '__main__':
 
 
 		elif args.test:
-			pass
+			
+			if useMnist:
+				batch_xs, _ = mnist.train.next_batch(batch_size)
+			else:
+				batch_xs = loader.next_batch(batch_size)
+
+
+
+
+			samples = batch_xs
+
+
+
+			for i in range(10):
+
+				sample_noise = np.random.uniform(-1.0, 1.0, (batch_size, rand_size))
+
+				
+				# take random crops from batch
+				samplePixels, sampleMask = samplePatches(samples, output_space, batch_size)
+				#samplePixels, sampleMask = sampleSparse(samples, output_space, batch_size)
+
+
+
+				sample_noise = np.concatenate([sample_noise, samplePixels], axis=1)
+
+
+				samples = gan.generate(sample_noise, sampleMask)
+
+				fig = plot(samples, *output_space)
+				plt.savefig('{}/out_{}.png'.format(logdir, i), bbox_inches='tight')
+				plt.close(fig)
+
+
+				fig = plot(samplePixels, *output_space)
+				plt.savefig('{}/crops_{}.png'.format(logdir, i), bbox_inches='tight')
+				plt.close(fig)
