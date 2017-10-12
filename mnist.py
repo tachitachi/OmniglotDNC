@@ -7,6 +7,7 @@ from tardis import TardisCell, TardisStateTuple
 from talstm import TimeAwareLSTMCell
 
 from tensorflow.examples.tutorials.mnist import input_data
+from scipy.misc import imresize, imsave, imread
 
 import tensorflow as tf
 import numpy as np
@@ -21,7 +22,7 @@ num_classes = 10
 
 def cnn():
 
-    epsilon = 0.25
+    epsilon = 0.15
     alpha = 0.5
 
     x = tf.placeholder(tf.float32, [None, height * width])
@@ -73,7 +74,7 @@ def cnn():
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
     
     #return x, y, loss, train_op, accuracy
-    return x, y, total_loss, train_op, accuracy, loss, adv_loss
+    return x, y, loss, train_op, accuracy, loss, adv_loss, adv_x, obs
     
 
 def length(sequence):
@@ -203,7 +204,7 @@ def main(_):
     mnist = input_data.read_data_sets(FLAGS.data_dir, one_hot=True)
 
     
-    x, y, loss, train_op, accuracy, partial_loss, adv_loss = cnn()
+    x, y, loss, train_op, accuracy, partial_loss, adv_loss, adv_x, guess = cnn()
     #x, y, loss, train_op, accuracy = cnn()
     print('done creating cnn')
     #x, y, state_init, cell, loss, train_op, accuracy, seq_len, lstm_state = rnn_tardis()
@@ -232,8 +233,14 @@ def main(_):
             #print(z)
                 
             if batch % 100 == 0:
-                acc = sess.run(accuracy, feed_dict={x: mnist.test.images, y: mnist.test.labels})
-                print(np.array([z, acc, p_loss, a_loss]))
+                acc, adv_example = sess.run([accuracy, adv_x], feed_dict={x: mnist.test.images, y: mnist.test.labels})
+                sample = np.reshape(mnist.test.images[0], (height, width))
+                adv_sample = np.reshape(adv_example[0], (height, width))
+                diff_sample = sample - adv_sample
+                results = sess.run(guess, feed_dict={x: [mnist.test.images[0], adv_example[0]]})
+                imsave('samples/sample_{}.png'.format(batch), sample)
+                imsave('samples/sample_{}_adv.png'.format(batch), adv_sample)
+                print(np.array([z, acc, p_loss, a_loss]), sample.shape, adv_sample.shape, diff_sample.shape, np.argmax(results, axis=1))
                 #print(np.array([z, acc]))
                 #print(state)
 
