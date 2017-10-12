@@ -20,40 +20,58 @@ width = height = 28
 num_classes = 10
 
 def cnn():
-    x = tf.placeholder(tf.float32, [None, width * height])
-    obs = tf.reshape(x, [-1, width, height, 1])
-    #x = tf.placeholder(tf.float32, [None, width, height, 1])
-    
-    # 3 conv layers
-    #obs = batch_norm(conv2d(obs, 4, 'conv1', (3, 3), (2, 2)))
-    #obs = batch_norm(conv2d(obs, 4, 'conv2', (3, 3), (2, 2)))
-    #obs = batch_norm(conv2d(obs, 4, 'conv3', (3, 3), (2, 2)))
-    
-    obs = tf.nn.relu(conv2d(obs, 4, 'conv1', (3, 3), (2, 2)))
-    obs = tf.nn.relu(conv2d(obs, 4, 'conv2', (3, 3), (2, 2)))
-    #obs = tf.nn.relu(conv2d(obs, 4, 'conv3', (3, 3), (2, 2)))
-    
-    #obs = conv2d(obs, 4, 'conv1', (3, 3), (2, 2))
-    #obs = conv2d(obs, 4, 'conv2', (3, 3), (2, 2))
-    #obs = conv2d(obs, 4, 'conv3', (3, 3), (2, 2))
-    #obs = conv2d(obs, 4, 'conv4', (3, 3), (2, 2))
-    obs = flatten(obs)
-    
-    # linear layer
-    #obs = linear(x, 100, 'linear_a')
-    #obs = linear(obs, 50, 'linear0')
-    #obs = linear(obs, 25, 'linear1')
-    obs = linear(obs, num_classes, 'linear2')
+
+    epsilon = 0.25
+    alpha = 0.5
+
+    x = tf.placeholder(tf.float32, [None, height * width])
+
+
+    def build_network(inputs, reuse=False):
+        with tf.variable_scope('cnn_network', reuse=reuse):
+            obs = tf.reshape(inputs, [-1, height, width, 1])
+            #x = tf.placeholder(tf.float32, [None, width, height, 1])
+            
+            obs = tf.layers.conv2d(obs, 64, 3, strides=2, activation=tf.nn.relu, name='conv1')
+            obs = tf.layers.conv2d(obs, 128, 3, strides=2, activation=tf.nn.relu, name='conv2')
+            obs = tf.layers.conv2d(obs, 256, 3, strides=2, activation=tf.nn.relu, name='conv3')
+            obs = flatten(obs)
+            
+            # linear layer
+            obs = tf.layers.dense(obs, num_classes, name='linear2')
+
+            return obs
+
+    obs = build_network(x)
     
     
     y = tf.placeholder(tf.float32, [None, num_classes])
     loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=obs, labels=y))
-    train_op = tf.train.AdamOptimizer(1e-2).minimize(loss)
+
+    grads = tf.gradients(loss, x)
+    print('grads', grads)
+
+    adv_x = tf.reshape(x + epsilon * tf.sign(grads), [-1, height * width])
+
+    print('adv_obs', adv_x)
+    print('x', x)
+
+    adv_obs = build_network(adv_x, reuse=True)
+    adv_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=adv_obs, labels=y))
+
+    total_loss = alpha * loss + (1 - alpha) * adv_loss
+
+
+
+
+    #train_op = tf.train.AdamOptimizer(1e-2).minimize(loss)
+    train_op = tf.train.AdamOptimizer(1e-2).minimize(total_loss)
     
     correct_prediction = tf.equal(tf.argmax(obs, 1), tf.argmax(y, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
     
-    return x, y, loss, train_op, accuracy
+    #return x, y, loss, train_op, accuracy
+    return x, y, total_loss, train_op, accuracy, loss, adv_loss
     
 
 def length(sequence):
@@ -183,9 +201,11 @@ def main(_):
     mnist = input_data.read_data_sets(FLAGS.data_dir, one_hot=True)
 
     
+    x, y, loss, train_op, accuracy, partial_loss, adv_loss = cnn()
     #x, y, loss, train_op, accuracy = cnn()
+    print('done creating cnn')
     #x, y, state_init, cell, loss, train_op, accuracy, seq_len, lstm_state = rnn_tardis()
-    x, y, loss, train_op, accuracy, seq_len = rnn()
+    #x, y, loss, train_op, accuracy, seq_len = rnn()
     
     batches = 5000
     batch_size = 200
@@ -194,7 +214,7 @@ def main(_):
         
         sess.run(tf.global_variables_initializer())
         
-        for batch in range(batches):
+        for batch in range(batches + 1):
             batch_xs, batch_ys = mnist.train.next_batch(batch_size)
             #print(batch_xs, batch_ys)
             
@@ -205,13 +225,14 @@ def main(_):
             #print('state', state)
             
             # train 
-            _, z, sl = sess.run([train_op, loss, seq_len], feed_dict={x: batch_xs, y: batch_ys })
+            _, z, p_loss, a_loss = sess.run([train_op, loss, partial_loss, adv_loss], feed_dict={x: batch_xs, y: batch_ys })
+            #_, z = sess.run([train_op, loss], feed_dict={x: batch_xs, y: batch_ys })
             #print(z)
                 
             if batch % 100 == 0:
                 acc = sess.run(accuracy, feed_dict={x: mnist.test.images, y: mnist.test.labels})
-                #print(np.array([z, acc]), sl)
-                print(np.array([z, acc]))
+                print(np.array([z, acc, p_loss, a_loss]))
+                #print(np.array([z, acc]))
                 #print(state)
 
 if __name__ == '__main__':
