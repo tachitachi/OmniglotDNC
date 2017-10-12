@@ -56,6 +56,8 @@ def cnn():
     print('adv_obs', adv_x)
     print('x', x)
 
+    # Adversarial training:
+    # https://arxiv.org/pdf/1412.6572.pdf
     adv_obs = build_network(adv_x, reuse=True)
     adv_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=adv_obs, labels=y))
 
