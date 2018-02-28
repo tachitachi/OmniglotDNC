@@ -8,12 +8,14 @@ class Sample():
         self.filepath = filepath
         self.classId = classId
         self.sampleId = sampleId
-        
+        self.data = None
         
     def load(self):
         # flatten to gray scale
-        I = imresize(imread(self.filepath,flatten=True), (28, 28))
-        return I
+        if self.data is None:
+            self.data = imresize(imread(self.filepath,flatten=True), (32, 32))
+
+        return self.data
         
     def __str__(self):
         return '{}, {}, {}'.format(self.filepath, self.classId, self.sampleId)
@@ -94,11 +96,11 @@ class Omniglot():
         return x[:batchSize], y[:batchSize]
         
     
-    def TrainBatch(self, batchSize, classes=1, samples=1, one_hot=True):
-        return self._GetBatch(self.trainChars, batchSize, classes, samples, one_hot)
+    def TrainBatch(self, batchSize, classes=1, samples=1, one_hot=True, flatten=True):
+        return self._GetBatch(self.trainChars, batchSize, classes, samples, one_hot, flatten=flatten)
     
-    def TestBatch(self, batchSize, classes=1, samples=1, one_hot=True):
-        return self._GetBatch(self.testChars, batchSize, classes, samples, one_hot)
+    def TestBatch(self, batchSize, classes=1, samples=1, one_hot=True, flatten=True):
+        return self._GetBatch(self.testChars, batchSize, classes, samples, one_hot, flatten=flatten)
             
 # test
 if __name__ == '__main__':
