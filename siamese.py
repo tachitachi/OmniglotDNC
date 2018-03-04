@@ -45,25 +45,40 @@ class SiameseNetwork(object):
 
 				# pass through conv2d layers
 
-				# (?, 32, 32, 1/3)
+				# (?, 105, 105, 1/3)
 
 				num_filters = 15
 
 				net = tf.layers.conv2d(inputs, num_filters, 6, strides=1, padding='valid', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-				# (?, 27, 27, 15)
+				# (?, 100, 100, 15)
 
 				net = tf.layers.max_pooling2d(net, 3, strides=3)
 				net = tf.nn.relu(net)
-				# (?, 9, 9, 15)
-
+				# (?, 33, 33, 15)
+				print('A', net)
 
 				# second conv layer
-				net = tf.layers.conv2d(net, num_filters * 2, 9, strides=1, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-				# (?, 9, 9, 30)
+				net = tf.layers.conv2d(net, num_filters * 2, 6, strides=1, padding='valid', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
+				# (?, 25, 25, 30)
+
+				net = tf.layers.max_pooling2d(net, 3, strides=3)
+				net = tf.nn.relu(net)
+				# (?, 8, 8, 30)
+
+				print('B', net)
+
+
+				# third conv layer
+				net = tf.layers.conv2d(net, num_filters * 4, 3, strides=1, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
+				# (?, 9, 9, 60)
+
+				print('C', net)
 
 				net = tf.layers.max_pooling2d(net, 9, strides=9)
 				net = tf.nn.relu(net)
-				# (?, 1, 1, 30)
+				# (?, 1, 1, 60)
+				print('D', net)
+
 
 				net = tf.reshape(net, [-1, np.prod(net.shape[1:])])
 
@@ -166,7 +181,7 @@ if __name__ == '__main__':
 
 	args = parser.parse_args()
 
-	omniglot_shape = (32, 32)
+	omniglot_shape = (105, 105)
 
 	batch_size = args.batch_size
 	batch_size_2 = int(batch_size / 2)
@@ -179,7 +194,7 @@ if __name__ == '__main__':
 	print_every_n = 1000
 
 
-	og = Omniglot()
+	og = Omniglot(omniglot_shape)
 
 	network = SiameseNetwork(omniglot_shape, learning_rate=args.learning_rate)
 

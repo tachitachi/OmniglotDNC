@@ -10,10 +10,13 @@ class Sample():
         self.sampleId = sampleId
         self.data = None
         
-    def load(self):
+    def load(self, size):
         # flatten to gray scale
         if self.data is None:
-            self.data = imresize(imread(self.filepath,flatten=True), (32, 32))
+            if size != (105, 105):
+                self.data = imresize(imread(self.filepath,flatten=True), size)
+            else:
+                self.data = np.reshape(imread(self.filepath,flatten=True), (105, 105))
 
         return self.data
         
@@ -29,13 +32,14 @@ class Character():
     def add(self, sample):
         self.samples.append(sample)
         
-    def load(self, n=1, flatten=False):
-        return [(sample.load().flatten() if flatten else sample.load()) for sample in np.random.choice(self.samples, n, replace=False)]
+    def load(self, size, n=1, flatten=False):
+        return [(sample.load(size).flatten() if flatten else sample.load(size)) for sample in np.random.choice(self.samples, n, replace=False)]
         
         
 class Omniglot():
-    def __init__(self):
+    def __init__(self, size=(32, 32)):
         # generate list of omniglot images on disk
+        self.size = size
         self.trainChars = {}
         self.testChars = {}
         
@@ -75,7 +79,7 @@ class Omniglot():
         for i in range(len(samples)):
             sample = samples[i]
             character = sampleDict[sample]
-            x.extend(character.load(samplesPerChar, flatten=flatten))
+            x.extend(character.load(size=self.size, n=samplesPerChar, flatten=flatten))
             
             if one_hot:
                 y_label = np.zeros(numClasses)
@@ -104,6 +108,6 @@ class Omniglot():
             
 # test
 if __name__ == '__main__':
-    og = Omniglot()
+    og = Omniglot(size=(32, 32))
     x, y = og.TrainBatch(1, classes=1, samples=1)
     print(x, y)
